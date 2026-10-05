@@ -40,16 +40,22 @@ app.use(express.static(__dirname));
 // MYSQL
 // =========================
 
-const db = mysql.createConnection({
+// ใช้ pool แทน connection เดียว
+// ถ้า connection หลุด (เช่น idle นานบน Railway) จะเปิดใหม่ให้อัตโนมัติ
+const db = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     port: process.env.DB_PORT || 3306,
-    charset: "utf8mb4"
+    charset: "utf8mb4",
+    waitForConnections: true,
+    connectionLimit: 10,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000
 });
 
-db.connect((err) => {
+db.query("SELECT 1", (err) => {
     if (err) {
         console.log("เชื่อมต่อ MySQL ไม่สำเร็จ");
         console.log(err);
