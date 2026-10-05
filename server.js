@@ -64,17 +64,39 @@ console.log(
     process.env.EMAIL_PASS ? "มีค่า" : "ไม่มีค่า"
 );
 
+console.log(
+    "EMAIL_USER:",
+    process.env.EMAIL_USER ? "มีค่า" : "ไม่มีค่า"
+);
+
+console.log(
+    "EMAIL_PASS:",
+    process.env.EMAIL_PASS ? "มีค่า" : "ไม่มีค่า"
+);
+
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
+
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000
+
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000
+});
+
+transporter.verify((error) => {
+    if (error) {
+        console.log("❌ EMAIL ERROR");
+        console.log(error);
+    } else {
+        console.log("✅ Email server พร้อมส่ง");
+    }
 });
 
 transporter.verify((error) => {
