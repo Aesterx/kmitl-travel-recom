@@ -9,6 +9,21 @@ const session = require("express-session");
 
 const app = express();
 
+// =====================================================
+// PENDING USERS
+// =====================================================
+// เก็บข้อมูลคนที่สมัครแล้ว แต่ยังไม่ได้ยืนยันอีเมล
+// จะยังไม่ INSERT เข้า user และยังไม่มี USER_ID
+//
+// หมายเหตุ:
+// ข้อมูลส่วนนี้อยู่ใน RAM
+// ถ้า Server restart ก่อนยืนยันอีเมล
+// ข้อมูลสมัครสมาชิกที่รอยืนยันจะหาย
+// =====================================================
+
+const pendingUsers = new Map();
+
+
 // =========================
 // MIDDLEWARE
 // =========================
@@ -30,6 +45,7 @@ app.use(
 
 app.use(express.static(__dirname));
 
+
 // =========================
 // MYSQL
 // =========================
@@ -44,29 +60,39 @@ const db = mysql.createConnection({
 });
 
 db.connect((err) => {
+
     if (err) {
+
         console.log("เชื่อมต่อ MySQL ไม่สำเร็จ");
         console.log(err);
+
         return;
     }
 
     console.log("เชื่อมต่อ MySQL สำเร็จ");
 });
 
+
 // =========================
 // EMAIL - RESEND
 // =========================
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend =
+    new Resend(
+        process.env.RESEND_API_KEY
+    );
 
 console.log(
     "RESEND_API_KEY:",
-    process.env.RESEND_API_KEY ? "มีค่า" : "ไม่มีค่า"
+    process.env.RESEND_API_KEY
+        ? "มีค่า"
+        : "ไม่มีค่า"
 );
 
-// =========================
+
+// =====================================================
 // REGISTER
-// =========================
+// =====================================================
 
 app.post("/register", async (req, res) => {
 
@@ -78,18 +104,32 @@ app.post("/register", async (req, res) => {
         lname
     } = req.body;
 
-    if (!username || !email || !password || !fname || !lname) {
+
+    // =========================
+    // CHECK REQUIRED
+    // =========================
+
+    if (
+        !username ||
+        !email ||
+        !password ||
+        !fname ||
+        !lname
+    ) {
+
         return res.status(400).json({
             success: false,
-            message: "กรุณากรอกข้อมูลให้ครบ"
+            message:
+                "กรุณากรอกข้อมูลให้ครบ"
         });
     }
 
+
     try {
 
-        // =========================
-        // CHECK USER
-        // =========================
+        // =================================================
+        // CHECK USER IN DATABASE
+        // =================================================
 
         const checkSql = `
             SELECT USER_ID
@@ -100,234 +140,278 @@ app.post("/register", async (req, res) => {
 
         db.query(
             checkSql,
-            [username, email],
+            [
+                username,
+                email
+            ],
             async (err, results) => {
 
                 if (err) {
-                    console.log("CHECK USER ERROR:", err);
+
+                    console.log(
+                        "CHECK USER ERROR:",
+                        err
+                    );
 
                     return res.status(500).json({
                         success: false,
-                        message: "ตรวจสอบข้อมูลไม่สำเร็จ"
+                        message:
+                            "ตรวจสอบข้อมูลไม่สำเร็จ"
                     });
                 }
+
+
+                // =============================================
+                // USER / EMAIL มีอยู่ใน DATABASE แล้ว
+                // =============================================
 
                 if (results.length > 0) {
+
                     return res.status(400).json({
                         success: false,
-                        message: "Username หรือ Email นี้มีอยู่แล้ว"
+                        message:
+                            "Username หรือ Email นี้มีอยู่แล้ว"
                     });
                 }
 
-                // =========================
+
+                // =================================================
+                // CHECK USER / EMAIL ที่กำลังรอยืนยัน
+                // =================================================
+
+                for (
+                    const pendingUser
+                    of pendingUsers.values()
+                ) {
+
+                    if (
+                        pendingUser.username ===
+                        username
+                    ) {
+
+                        return res.status(400).json({
+                            success: false,
+                            message:
+                                "Username นี้กำลังรอยืนยันอีเมล"
+                        });
+                    }
+
+
+                    if (
+                        pendingUser.email ===
+                        email
+                    ) {
+
+                        return res.status(400).json({
+                            success: false,
+                            message:
+                                "Email นี้กำลังรอยืนยันอีเมล"
+                        });
+                    }
+                }
+
+
+                // =================================================
                 // HASH PASSWORD
-                // =========================
+                // =================================================
 
-                const hashedPassword = await bcrypt.hash(
-                    password,
-                    10
-                );
+                const hashedPassword =
+                    await bcrypt.hash(
+                        password,
+                        10
+                    );
 
-                // =========================
+
+                // =================================================
                 // CREATE VERIFY TOKEN
-                // =========================
+                // =================================================
 
                 const verifyToken =
-                    crypto.randomBytes(32).toString("hex");
+                    crypto
+                        .randomBytes(32)
+                        .toString("hex");
 
-                // =========================
-                // INSERT USER
-                // =========================
 
-                const sql = `
-                    INSERT INTO \`user\`
-                    (
-                        USER_USERNAME,
-                        USER_EMAIL,
-                        USER_PASSWORD,
-                        USER_FNAME,
-                        USER_LNAME,
-                        USER_EMAIL_VERIFIED,
-                        USER_VERIFY_TOKEN
-                    )
-                    VALUES (?, ?, ?, ?, ?, 0, ?)
-                `;
+                // =================================================
+                // IMPORTANT
+                // =================================================
+                // ตรงนี้ "ยังไม่ INSERT user"
+                //
+                // ดังนั้น:
+                // - ยังไม่มี USER_ID
+                // - ยังไม่มีข้อมูลใน user table
+                //
+                // เก็บข้อมูลไว้ใน pendingUsers ก่อน
+                // =================================================
 
-                db.query(
-                    sql,
-                    [
-                        username,
-                        email,
-                        hashedPassword,
-                        fname,
-                        lname,
-                        verifyToken
-                    ],
-                    async (err, result) => {
+                pendingUsers.set(
+                    verifyToken,
+                    {
+                        username:
+                            username,
 
-                        if (err) {
-                            console.log(
-                                "INSERT USER ERROR:",
-                                err
-                            );
+                        email:
+                            email,
 
-                            return res.status(500).json({
-                                success: false,
-                                message: "สมัครสมาชิกไม่สำเร็จ"
-                            });
-                        }
+                        password:
+                            hashedPassword,
 
-                        console.log(
-                            "✅ INSERT USER สำเร็จ USER_ID:",
-                            result.insertId
-                        );
+                        fname:
+                            fname,
 
-                        // =========================
-                        // VERIFY LINK
-                        // =========================
-
-                        const verifyLink =
-                            `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
-
-                        // =========================
-                        // SEND EMAIL - RESEND
-                        // =========================
-
-                        console.log(
-                            "📧 กำลังส่ง Email ไปที่:",
-                            email
-                        );
-
-                        try {
-
-                            const {
-                                data,
-                                error
-                            } = await resend.emails.send({
-
-                                from:
-                                    "เที่ยวไหนดี สจล. <onboarding@resend.dev>",
-
-                                to: [email],
-
-                                subject:
-                                    "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
-
-                                html: `
-                                    <div
-                                        style="
-                                            font-family: Arial, sans-serif;
-                                            max-width: 600px;
-                                            margin: auto;
-                                            padding: 20px;
-                                        "
-                                    >
-
-                                        <h2>
-                                            ยืนยันอีเมล
-                                        </h2>
-
-                                        <p>
-                                            ขอบคุณสำหรับการสมัครสมาชิก
-                                            เว็บไซต์เที่ยวไหนดี สจล.
-                                        </p>
-
-                                        <p>
-                                            กรุณากดปุ่มด้านล่าง
-                                            เพื่อยืนยันอีเมลของคุณ
-                                        </p>
-
-                                        <a
-                                            href="${verifyLink}"
-                                            style="
-                                                display: inline-block;
-                                                padding: 12px 20px;
-                                                background: #333;
-                                                color: white;
-                                                text-decoration: none;
-                                                border-radius: 8px;
-                                            "
-                                        >
-                                            ยืนยันอีเมล
-                                        </a>
-
-                                        <p style="margin-top:20px;">
-                                            หากคุณไม่ได้สมัครสมาชิก
-                                            สามารถละเว้นอีเมลนี้ได้
-                                        </p>
-
-                                    </div>
-                                `
-                            });
-
-                            if (error) {
-                                throw new Error(error.message);
-                            }
-
-                            console.log(
-                                "✅ ส่ง Email สำเร็จ:",
-                                email
-                            );
-
-                            console.log(
-                                "Message ID:",
-                                data?.id
-                            );
-
-                            return res.json({
-                                success: true,
-                                message:
-                                    "สมัครสมาชิกสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน"
-                            });
-
-                        } catch (emailError) {
-
-                            console.log(
-                                "❌ ส่ง Email ไม่สำเร็จ"
-                            );
-
-                            console.log(emailError);
-
-                            // =========================
-                            // DELETE USER
-                            // ถ้าส่งเมลไม่ได้
-                            // =========================
-
-                            db.query(
-                                `
-                                DELETE FROM \`user\`
-                                WHERE USER_ID = ?
-                                `,
-                                [result.insertId],
-                                (deleteErr) => {
-
-                                    if (deleteErr) {
-
-                                        console.log(
-                                            "DELETE USER ERROR:",
-                                            deleteErr
-                                        );
-
-                                    } else {
-
-                                        console.log(
-                                            "🗑️ ลบ User เพราะส่ง Email ไม่สำเร็จ"
-                                        );
-
-                                    }
-                                }
-                            );
-
-                            return res.status(500).json({
-                                success: false,
-                                message:
-                                    "ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
-                            });
-                        }
+                        lname:
+                            lname
                     }
                 );
+
+
+                console.log(
+                    "🕐 สมัครสมาชิก รอยืนยันอีเมล:",
+                    email
+                );
+
+
+                // =================================================
+                // VERIFY LINK
+                // =================================================
+
+                const verifyLink =
+                    `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
+
+
+                // =================================================
+                // SEND EMAIL - RESEND
+                // =================================================
+
+                console.log(
+                    "📧 กำลังส่ง Email ไปที่:",
+                    email
+                );
+
+
+                try {
+
+                    const {
+                        data,
+                        error
+                    } =
+                        await resend.emails.send({
+
+                            from:
+                                "เที่ยวไหนดี สจล. <onboarding@resend.dev>",
+
+                            to:
+                                [email],
+
+                            subject:
+                                "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
+
+                            html: `
+                                <div
+                                    style="
+                                        font-family: Arial, sans-serif;
+                                        max-width: 600px;
+                                        margin: auto;
+                                        padding: 20px;
+                                    "
+                                >
+
+                                    <h2>
+                                        ยืนยันอีเมล
+                                    </h2>
+
+                                    <p>
+                                        ขอบคุณสำหรับการสมัครสมาชิก
+                                        เว็บไซต์เที่ยวไหนดี สจล.
+                                    </p>
+
+                                    <p>
+                                        กรุณากดปุ่มด้านล่าง
+                                        เพื่อยืนยันอีเมลของคุณ
+                                    </p>
+
+                                    <a
+                                        href="${verifyLink}"
+                                        style="
+                                            display: inline-block;
+                                            padding: 12px 20px;
+                                            background: #333;
+                                            color: white;
+                                            text-decoration: none;
+                                            border-radius: 8px;
+                                        "
+                                    >
+                                        ยืนยันอีเมล
+                                    </a>
+
+                                    <p style="margin-top:20px;">
+                                        หากคุณไม่ได้สมัครสมาชิก
+                                        สามารถละเว้นอีเมลนี้ได้
+                                    </p>
+
+                                </div>
+                            `
+                        });
+
+
+                    if (error) {
+                        throw new Error(
+                            error.message
+                        );
+                    }
+
+
+                    console.log(
+                        "✅ ส่ง Email สำเร็จ:",
+                        email
+                    );
+
+                    console.log(
+                        "Message ID:",
+                        data?.id
+                    );
+
+
+                    return res.json({
+                        success: true,
+                        message:
+                            "สมัครสมาชิกสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน"
+                    });
+
+
+                } catch (emailError) {
+
+                    console.log(
+                        "❌ ส่ง Email ไม่สำเร็จ"
+                    );
+
+                    console.log(
+                        emailError
+                    );
+
+
+                    // =================================================
+                    // ถ้าส่ง Email ไม่สำเร็จ
+                    // ลบข้อมูลออกจาก pendingUsers
+                    //
+                    // ไม่มี USER ใน database ให้ลบ
+                    // เพราะเรายังไม่ได้ INSERT
+                    // =================================================
+
+                    pendingUsers.delete(
+                        verifyToken
+                    );
+
+
+                    return res.status(500).json({
+                        success: false,
+                        message:
+                            "ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+                    });
+                }
             }
         );
+
 
     } catch (error) {
 
@@ -344,86 +428,166 @@ app.post("/register", async (req, res) => {
     }
 });
 
-// =========================
+
+// =====================================================
 // VERIFY EMAIL
-// =========================
+// =====================================================
 
 app.get("/verify", (req, res) => {
 
-    const token = req.query.token;
+    const token =
+        req.query.token;
+
+
+    // =========================
+    // CHECK TOKEN
+    // =========================
 
     if (!token) {
+
         return res.send(`
-            <h2>ลิงก์ยืนยันไม่ถูกต้อง</h2>
+            <h2>
+                ลิงก์ยืนยันไม่ถูกต้อง
+            </h2>
         `);
     }
 
-    const sql = `
-        SELECT USER_ID
-        FROM \`user\`
-        WHERE USER_VERIFY_TOKEN = ?
+
+    // =================================================
+    // หา User ที่รอยืนยันจาก RAM
+    // =================================================
+
+    const pendingUser =
+        pendingUsers.get(token);
+
+
+    // =================================================
+    // TOKEN ไม่มี / ถูกใช้แล้ว / หมดจาก RAM
+    // =================================================
+
+    if (!pendingUser) {
+
+        return res.send(`
+            <h2>
+                ลิงก์ยืนยันไม่ถูกต้องหรือถูกใช้ไปแล้ว
+            </h2>
+        `);
+    }
+
+
+    // =================================================
+    // INSERT USER ตอนยืนยันอีเมลเท่านั้น
+    // =================================================
+
+    const insertSql = `
+        INSERT INTO \`user\`
+        (
+            USER_USERNAME,
+            USER_EMAIL,
+            USER_PASSWORD,
+            USER_FNAME,
+            USER_LNAME,
+            USER_EMAIL_VERIFIED,
+            USER_VERIFY_TOKEN
+        )
+        VALUES (?, ?, ?, ?, ?, 1, NULL)
     `;
 
+
     db.query(
-        sql,
-        [token],
-        (err, results) => {
+        insertSql,
+        [
+            pendingUser.username,
+            pendingUser.email,
+            pendingUser.password,
+            pendingUser.fname,
+            pendingUser.lname
+        ],
+        (err, result) => {
 
             if (err) {
 
-                console.log(err);
+                console.log(
+                    "VERIFY INSERT USER ERROR:",
+                    err
+                );
+
+
+                // =================================================
+                // กรณี Username / Email ซ้ำ
+                // =================================================
+
+                if (
+                    err.code === "ER_DUP_ENTRY"
+                ) {
+
+                    pendingUsers.delete(
+                        token
+                    );
+
+                    return res.send(`
+                        <h2>
+                            Username หรือ Email นี้มีอยู่แล้ว
+                        </h2>
+
+                        <p>
+                            กรุณาสมัครสมาชิกใหม่
+                        </p>
+                    `);
+                }
+
 
                 return res.status(500).send(`
-                    <h2>เกิดข้อผิดพลาด</h2>
-                `);
-            }
-
-            if (results.length === 0) {
-
-                return res.send(`
                     <h2>
-                        ลิงก์ยืนยันไม่ถูกต้องหรือถูกใช้ไปแล้ว
+                        ยืนยันอีเมลไม่สำเร็จ
                     </h2>
+
+                    <p>
+                        กรุณาลองใหม่อีกครั้ง
+                    </p>
                 `);
             }
 
-            const userId =
-                results[0].USER_ID;
 
-            const updateSql = `
-                UPDATE \`user\`
-                SET
-                    USER_EMAIL_VERIFIED = 1,
-                    USER_VERIFY_TOKEN = NULL
-                WHERE USER_ID = ?
-            `;
+            // =================================================
+            // MySQL สร้าง USER_ID ให้ตรงนี้
+            // =================================================
 
-            db.query(
-                updateSql,
-                [userId],
-                (err) => {
+            console.log(
+                "✅ ยืนยัน Email สำเร็จ"
+            );
 
-                    if (err) {
+            console.log(
+                "✅ INSERT USER สำเร็จ USER_ID:",
+                result.insertId
+            );
 
-                        console.log(err);
 
-                        return res.status(500).send(`
-                            <h2>
-                                ยืนยันอีเมลไม่สำเร็จ
-                            </h2>
-                        `);
-                    }
+            // =================================================
+            // ลบข้อมูลออกจาก pendingUsers
+            // เพื่อไม่ให้ Token ใช้ซ้ำ
+            // =================================================
 
-                    res.redirect("/verify.html");
-                }
+            pendingUsers.delete(
+                token
+            );
+
+
+            // =================================================
+            // ไปหน้า verify.html
+            // =================================================
+
+            res.redirect(
+                "/verify.html"
             );
         }
     );
 });
 
-// =========================
+
+// =====================================================
 // LOGIN
-// =========================
+// =====================================================
 
 app.post("/login", (req, res) => {
 
@@ -432,7 +596,11 @@ app.post("/login", (req, res) => {
         password
     } = req.body;
 
-    if (!username || !password) {
+
+    if (
+        !username ||
+        !password
+    ) {
 
         return res.status(400).json({
             success: false,
@@ -440,6 +608,7 @@ app.post("/login", (req, res) => {
                 "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
         });
     }
+
 
     const sql = `
         SELECT
@@ -452,6 +621,7 @@ app.post("/login", (req, res) => {
         FROM \`user\`
         WHERE USER_USERNAME = ?
     `;
+
 
     db.query(
         sql,
@@ -469,7 +639,10 @@ app.post("/login", (req, res) => {
                 });
             }
 
-            if (results.length === 0) {
+
+            if (
+                results.length === 0
+            ) {
 
                 return res.status(401).json({
                     success: false,
@@ -478,13 +651,17 @@ app.post("/login", (req, res) => {
                 });
             }
 
-            const user = results[0];
+
+            const user =
+                results[0];
+
 
             const passwordMatch =
                 await bcrypt.compare(
                     password,
                     user.USER_PASSWORD
                 );
+
 
             if (!passwordMatch) {
 
@@ -495,8 +672,15 @@ app.post("/login", (req, res) => {
                 });
             }
 
+
+            // =================================================
+            // ต้องยืนยัน Email ก่อน Login
+            // =================================================
+
             if (
-                Number(user.USER_EMAIL_VERIFIED) !== 1
+                Number(
+                    user.USER_EMAIL_VERIFIED
+                ) !== 1
             ) {
 
                 return res.status(403).json({
@@ -506,12 +690,22 @@ app.post("/login", (req, res) => {
                 });
             }
 
+
             req.session.user = {
-                id: user.USER_ID,
-                username: user.USER_USERNAME,
-                fname: user.USER_FNAME,
-                lname: user.USER_LNAME
+
+                id:
+                    user.USER_ID,
+
+                username:
+                    user.USER_USERNAME,
+
+                fname:
+                    user.USER_FNAME,
+
+                lname:
+                    user.USER_LNAME
             };
+
 
             res.json({
                 success: true,
@@ -522,9 +716,10 @@ app.post("/login", (req, res) => {
     );
 });
 
-// =========================
+
+// =====================================================
 // CHECK LOGIN
-// =========================
+// =====================================================
 
 app.get("/me", (req, res) => {
 
@@ -535,15 +730,18 @@ app.get("/me", (req, res) => {
         });
     }
 
+
     res.json({
         loggedIn: true,
-        user: req.session.user
+        user:
+            req.session.user
     });
 });
 
-// =========================
+
+// =====================================================
 // LOGOUT
-// =========================
+// =====================================================
 
 app.get("/logout", (req, res) => {
 
@@ -558,6 +756,7 @@ app.get("/logout", (req, res) => {
             });
         }
 
+
         res.json({
             success: true,
             message:
@@ -565,6 +764,7 @@ app.get("/logout", (req, res) => {
         });
     });
 });
+
 
 // =====================================================
 // REVIEW SUMMARY
@@ -574,7 +774,9 @@ app.get(
     "/places/:id/review-summary",
     (req, res) => {
 
-        const placeId = req.params.id;
+        const placeId =
+            req.params.id;
+
 
         const sql = `
             SELECT
@@ -590,6 +792,7 @@ app.get(
             WHERE PLACE_ID = ?
         `;
 
+
         db.query(
             sql,
             [placeId],
@@ -600,15 +803,20 @@ app.get(
                     console.log(err);
 
                     return res.status(500).json({
-                        error: err.message
+                        error:
+                            err.message
                     });
                 }
 
-                res.json(results[0]);
+
+                res.json(
+                    results[0]
+                );
             }
         );
     }
 );
+
 
 // =====================================================
 // CHECK FAVORITE
@@ -625,11 +833,13 @@ app.get(
             });
         }
 
+
         const userId =
             req.session.user.id;
 
         const placeId =
             req.params.placeId;
+
 
         const sql = `
             SELECT FAVORITE_ID
@@ -638,9 +848,13 @@ app.get(
             AND PLACE_ID = ?
         `;
 
+
         db.query(
             sql,
-            [userId, placeId],
+            [
+                userId,
+                placeId
+            ],
             (err, results) => {
 
                 if (err) {
@@ -651,9 +865,11 @@ app.get(
                     );
 
                     return res.status(500).json({
-                        error: err.message
+                        error:
+                            err.message
                     });
                 }
+
 
                 res.json({
                     isFavorite:
@@ -664,61 +880,73 @@ app.get(
     }
 );
 
+
 // =====================================================
 // GET FAVORITES
 // =====================================================
 
-app.get("/favorites", (req, res) => {
+app.get(
+    "/favorites",
+    (req, res) => {
 
-    if (!req.session.user) {
+        if (!req.session.user) {
 
-        return res.status(401).json({
-            success: false,
-            message:
-                "กรุณาเข้าสู่ระบบก่อน"
-        });
-    }
-
-    const userId =
-        req.session.user.id;
-
-    const sql = `
-        SELECT
-            P.PLACE_ID,
-            P.PLACE_NAME,
-            P.PLACE_DESCRIPTION,
-            P.PLACE_ADDRESS,
-            F.FAVORITE_ID
-
-        FROM favorite F
-
-        JOIN place P
-            ON F.PLACE_ID = P.PLACE_ID
-
-        WHERE F.USER_ID = ?
-
-        ORDER BY F.FAVORITE_ID DESC
-    `;
-
-    db.query(
-        sql,
-        [userId],
-        (err, results) => {
-
-            if (err) {
-
-                console.log(err);
-
-                return res.status(500).json({
-                    success: false,
-                    message: err.message
-                });
-            }
-
-            res.json(results);
+            return res.status(401).json({
+                success: false,
+                message:
+                    "กรุณาเข้าสู่ระบบก่อน"
+            });
         }
-    );
-});
+
+
+        const userId =
+            req.session.user.id;
+
+
+        const sql = `
+            SELECT
+                P.PLACE_ID,
+                P.PLACE_NAME,
+                P.PLACE_DESCRIPTION,
+                P.PLACE_ADDRESS,
+                F.FAVORITE_ID
+
+            FROM favorite F
+
+            JOIN place P
+                ON F.PLACE_ID = P.PLACE_ID
+
+            WHERE F.USER_ID = ?
+
+            ORDER BY F.FAVORITE_ID DESC
+        `;
+
+
+        db.query(
+            sql,
+            [userId],
+            (err, results) => {
+
+                if (err) {
+
+                    console.log(err);
+
+                    return res.status(500).json({
+                        success: false,
+                        message:
+                            err.message
+                    });
+                }
+
+
+                res.json(
+                    results
+                );
+            }
+        );
+    }
+);
+
 
 // =====================================================
 // ADD FAVORITE
@@ -737,11 +965,13 @@ app.post(
             });
         }
 
+
         const userId =
             req.session.user.id;
 
         const placeId =
             req.params.placeId;
+
 
         const checkSql = `
             SELECT FAVORITE_ID
@@ -750,20 +980,28 @@ app.post(
             AND PLACE_ID = ?
         `;
 
+
         db.query(
             checkSql,
-            [userId, placeId],
+            [
+                userId,
+                placeId
+            ],
             (err, results) => {
 
                 if (err) {
 
                     return res.status(500).json({
                         success: false,
-                        message: err.message
+                        message:
+                            err.message
                     });
                 }
 
-                if (results.length > 0) {
+
+                if (
+                    results.length > 0
+                ) {
 
                     return res.json({
                         success: false,
@@ -771,6 +1009,7 @@ app.post(
                             "สถานที่นี้อยู่ในรายการโปรดแล้ว"
                     });
                 }
+
 
                 const insertSql = `
                     INSERT INTO favorite
@@ -794,9 +1033,13 @@ app.post(
                     )
                 `;
 
+
                 db.query(
                     insertSql,
-                    [userId, placeId],
+                    [
+                        userId,
+                        placeId
+                    ],
                     (err, result) => {
 
                         if (err) {
@@ -810,6 +1053,7 @@ app.post(
                             });
                         }
 
+
                         res.json({
                             success: true,
                             message:
@@ -821,6 +1065,7 @@ app.post(
         );
     }
 );
+
 
 // =====================================================
 // DELETE FAVORITE
@@ -839,11 +1084,13 @@ app.delete(
             });
         }
 
+
         const userId =
             req.session.user.id;
 
         const placeId =
             req.params.placeId;
+
 
         const sql = `
             DELETE FROM favorite
@@ -851,9 +1098,13 @@ app.delete(
             AND PLACE_ID = ?
         `;
 
+
         db.query(
             sql,
-            [userId, placeId],
+            [
+                userId,
+                placeId
+            ],
             (err, result) => {
 
                 if (err) {
@@ -867,6 +1118,7 @@ app.delete(
                     });
                 }
 
+
                 res.json({
                     success: true,
                     message:
@@ -877,69 +1129,81 @@ app.delete(
     }
 );
 
-// =========================
+
+// =====================================================
 // PLACES
-// =========================
+// =====================================================
 
 // GET ALL PLACES
 
-app.get("/places", (req, res) => {
+app.get(
+    "/places",
+    (req, res) => {
 
- const sql = `
-    SELECT
-        P.PLACE_ID,
-        P.PLACE_NAME,
-        P.PLACE_DESCRIPTION,
-        P.PLACE_ADDRESS,
-        P.TYPE_ID AS TYPE_ID,
-        P.MOOD_ID AS MOOD_ID,
+        const sql = `
+            SELECT
+                P.PLACE_ID,
+                P.PLACE_NAME,
+                P.PLACE_DESCRIPTION,
+                P.PLACE_ADDRESS,
 
-        C.COST_ENTRANCE_FEE,
-        C.COST_AVERAGE,
+                P.TYPE_ID AS TYPE_ID,
+                P.MOOD_ID AS MOOD_ID,
 
-        T.TRANSPORT_TYPE,
-        T.TRANSPORT_DESCRIPTION,
-        T.TRANSPORT_COST,
+                C.COST_ENTRANCE_FEE,
+                C.COST_AVERAGE,
 
-        I.IMAGE_URL
+                T.TRANSPORT_TYPE,
+                T.TRANSPORT_DESCRIPTION,
+                T.TRANSPORT_COST,
 
-    FROM place P
+                I.IMAGE_URL
 
-    LEFT JOIN cost C
-        ON P.COST_ID = C.COST_ID
+            FROM place P
 
-    LEFT JOIN transport T
-        ON P.TRANSPORT_ID = T.TRANSPORT_ID
+            LEFT JOIN cost C
+                ON P.COST_ID = C.COST_ID
 
-    LEFT JOIN \`image\` I
-        ON P.PLACE_ID = I.PLACE_ID
+            LEFT JOIN transport T
+                ON P.TRANSPORT_ID = T.TRANSPORT_ID
 
-    ORDER BY P.PLACE_ID
-`;
-    db.query(
-        sql,
-        (err, results) => {
+            LEFT JOIN \`image\` I
+                ON P.PLACE_ID = I.PLACE_ID
 
-            if (err) {
+            ORDER BY P.PLACE_ID
+        `;
 
-                console.log(
-                    "GET PLACES ERROR:",
-                    err
+
+        db.query(
+            sql,
+            (err, results) => {
+
+                if (err) {
+
+                    console.log(
+                        "GET PLACES ERROR:",
+                        err
+                    );
+
+                    return res.status(500).json({
+                        error:
+                            err.message
+                    });
+                }
+
+
+                res.json(
+                    results
                 );
-
-                return res.status(500).json({
-                    error: err.message
-                });
             }
+        );
+    }
+);
 
-            res.json(results);
-        }
-    );
-});
 
-// =========================
+// =====================================================
 // GET PLACE BY ID
-// =========================
+// =====================================================
 
 app.get(
     "/places/:id",
@@ -947,6 +1211,7 @@ app.get(
 
         const placeId =
             req.params.id;
+
 
         const sql = `
             SELECT
@@ -978,6 +1243,7 @@ app.get(
             WHERE P.PLACE_ID = ?
         `;
 
+
         db.query(
             sql,
             [placeId],
@@ -991,11 +1257,15 @@ app.get(
                     );
 
                     return res.status(500).json({
-                        error: err.message
+                        error:
+                            err.message
                     });
                 }
 
-                if (results.length === 0) {
+
+                if (
+                    results.length === 0
+                ) {
 
                     return res.status(404).json({
                         error:
@@ -1003,15 +1273,19 @@ app.get(
                     });
                 }
 
-                res.json(results[0]);
+
+                res.json(
+                    results[0]
+                );
             }
         );
     }
 );
 
-// =========================
+
+// =====================================================
 // GET REVIEWS
-// =========================
+// =====================================================
 
 app.get(
     "/places/:id/reviews",
@@ -1019,6 +1293,7 @@ app.get(
 
         const placeId =
             req.params.id;
+
 
         const sql = `
             SELECT
@@ -1040,6 +1315,7 @@ app.get(
             ORDER BY R.REVIEW_DATE DESC
         `;
 
+
         db.query(
             sql,
             [placeId],
@@ -1055,15 +1331,19 @@ app.get(
                     });
                 }
 
-                res.json(results);
+
+                res.json(
+                    results
+                );
             }
         );
     }
 );
 
-// =========================
+
+// =====================================================
 // ADD REVIEW
-// =========================
+// =====================================================
 
 app.post(
     "/places/:id/reviews",
@@ -1078,16 +1358,19 @@ app.post(
             });
         }
 
+
         const placeId =
             req.params.id;
 
         const userId =
             req.session.user.id;
 
+
         const {
             rating,
             comment
         } = req.body;
+
 
         if (!rating) {
 
@@ -1097,6 +1380,7 @@ app.post(
                     "กรุณาให้คะแนน"
             });
         }
+
 
         const sql = `
             INSERT INTO review
@@ -1109,6 +1393,7 @@ app.post(
             )
             VALUES (?, ?, ?, ?, NOW())
         `;
+
 
         db.query(
             sql,
@@ -1131,6 +1416,7 @@ app.post(
                     });
                 }
 
+
                 res.json({
                     success: true,
                     message:
@@ -1141,18 +1427,22 @@ app.post(
     }
 );
 
-// =========================
+
+// =====================================================
 // START SERVER
-// =========================
+// =====================================================
 
 const PORT =
     process.env.PORT || 3000;
 
+
 app.listen(
     PORT,
     () => {
+
         console.log(
             `เว็บไซต์เปิดที่ port ${PORT}`
         );
+
     }
 );
