@@ -967,5 +967,4 @@ app.post("/places/:id/reviews", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`เว็บไซต์เปิดที่ port ${PORT}`);
-});
+    console.log(`เว็บไซต์เปิดที่ port ${PORT}`);});
