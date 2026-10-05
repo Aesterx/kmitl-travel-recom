@@ -8,30 +8,137 @@
     <title>ยืนยันอีเมล - เที่ยวไหนดี สจล.</title>
 
     <link rel="stylesheet" href="style.css">
+
+    <style>
+        .verify-box {
+            text-align: center;
+        }
+
+        .verify-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            border-radius: 50%;
+            font-size: 40px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .verify-icon.success {
+            background-color: #2ecc71;
+        }
+
+        .verify-icon.invalid,
+        .verify-icon.error {
+            background-color: #e74c3c;
+        }
+
+        .verify-box p {
+            margin: 10px 0 25px;
+            line-height: 1.6;
+            color: #666;
+        }
+
+        .verify-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: #fd7d38;
+            text-decoration: none;
+        }
+
+        .verify-link:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 16px;
+            }
+
+            .login-box {
+                width: 100%;
+                padding: 30px 20px;
+            }
+        }
+    </style>
 </head>
 
 <body>
 
     <div class="login-container">
 
-        <div class="login-box">
+        <div class="login-box verify-box">
 
-            <h1>ยืนยันอีเมลสำเร็จ!</h1>
+            <div id="verify-icon" class="verify-icon success">✓</div>
 
-            <p>
+            <h1 id="verify-title">ยืนยันอีเมลสำเร็จ!</h1>
+
+            <p id="verify-message">
                 อีเมลของคุณได้รับการยืนยันเรียบร้อยแล้ว
+                สามารถเข้าสู่ระบบได้เลย
             </p>
 
             <button
+                id="verify-button"
                 class="submit-btn"
                 onclick="window.location.href='login.html'"
             >
                 เข้าสู่ระบบ
             </button>
 
+            <a class="verify-link" href="index.html">กลับหน้าแรก</a>
+
         </div>
 
     </div>
+
+    <script>
+        const pages = {
+            success: {
+                icon: "✓",
+                title: "ยืนยันอีเมลสำเร็จ!",
+                message: "อีเมลของคุณได้รับการยืนยันเรียบร้อยแล้ว สามารถเข้าสู่ระบบได้เลย",
+                button: "เข้าสู่ระบบ",
+                link: "login.html"
+            },
+            invalid: {
+                icon: "!",
+                title: "ลิงก์ยืนยันใช้ไม่ได้",
+                message: "ลิงก์นี้ไม่ถูกต้อง ถูกใช้ไปแล้ว หรือหมดอายุ หากยังเข้าสู่ระบบไม่ได้ กรุณาสมัครสมาชิกใหม่อีกครั้ง",
+                button: "สมัครสมาชิกใหม่",
+                link: "register.html"
+            },
+            error: {
+                icon: "✕",
+                title: "ยืนยันอีเมลไม่สำเร็จ",
+                message: "เกิดข้อผิดพลาดระหว่างสร้างบัญชี กรุณาลองใหม่อีกครั้งภายหลัง",
+                button: "สมัครสมาชิกใหม่",
+                link: "register.html"
+            }
+        };
+
+        const status = new URLSearchParams(location.search).get("status");
+        const page = pages[status] || pages.success;
+        const kind = pages[status] ? status : "success";
+
+        const icon = document.getElementById("verify-icon");
+        icon.textContent = page.icon;
+        icon.className = "verify-icon " + kind;
+
+        document.getElementById("verify-title").textContent = page.title;
+        document.getElementById("verify-message").textContent = page.message;
+
+        const button = document.getElementById("verify-button");
+        button.textContent = page.button;
+        button.onclick = () => {
+            window.location.href = page.link;
+        };
+    </script>
 
 </body>
 </html>

@@ -4,7 +4,6 @@ const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
-const { Resend } = require("resend");
 const session = require("express-session");
 
 const app = express();
@@ -61,15 +60,51 @@ db.connect((err) => {
 });
 
 // =========================
-// EMAIL - RESEND
+// EMAIL - EMAILJS (HTTP API)
 // =========================
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAILJS_KEYS = [
+    "EMAILJS_SERVICE_ID",
+    "EMAILJS_TEMPLATE_ID",
+    "EMAILJS_PUBLIC_KEY",
+    "EMAILJS_PRIVATE_KEY"
+];
 
-console.log(
-    "RESEND_API_KEY:",
-    process.env.RESEND_API_KEY ? "มีค่า" : "ไม่มีค่า"
-);
+for (const key of EMAILJS_KEYS) {
+    console.log(key + ":", process.env[key] ? "มีค่า" : "ไม่มีค่า");
+}
+
+async function sendEmail({ to, subject, html }) {
+
+    const response = await fetch(
+        "https://api.emailjs.com/api/v1.0/email/send",
+        {
+            method: "POST",
+            headers: {
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                service_id: process.env.EMAILJS_SERVICE_ID,
+                template_id: process.env.EMAILJS_TEMPLATE_ID,
+                user_id: process.env.EMAILJS_PUBLIC_KEY,
+                accessToken: process.env.EMAILJS_PRIVATE_KEY,
+                template_params: {
+                    to_email: to,
+                    subject,
+                    message_html: html
+                }
+            })
+        }
+    );
+
+    const text = await response.text();
+
+    if (!response.ok) {
+        throw new Error("EmailJS " + response.status + ": " + text);
+    }
+
+    return { messageId: text };
+}
 
 // =========================
 // REGISTER
@@ -200,7 +235,7 @@ app.post("/register", async (req, res) => {
                     `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
 
                 // =========================
-                // SEND EMAIL - RESEND
+                // SEND EMAIL - EMAILJS
                 // =========================
 
                 console.log(
@@ -210,14 +245,10 @@ app.post("/register", async (req, res) => {
 
                 try {
 
-                    const { data, error } =
-                        await resend.emails.send({
+                    const data =
+                        await sendEmail({
 
-                            from:
-                                process.env.RESEND_FROM ||
-                                "เที่ยวไหนดี สจล. <onboarding@resend.dev>",
-
-                            to: [email],
+                            to: email,
 
                             subject:
                                 "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
@@ -269,10 +300,6 @@ app.post("/register", async (req, res) => {
                             `
                         });
 
-                    if (error) {
-                        throw error;
-                    }
-
                     console.log(
                         "✅ ส่ง Email สำเร็จ:",
                         email
@@ -280,7 +307,7 @@ app.post("/register", async (req, res) => {
 
                     console.log(
                         "Message ID:",
-                        data.id
+                        data.messageId
                     );
 
                     return res.json({
@@ -336,11 +363,7 @@ app.get("/verify", (req, res) => {
         req.query.token;
 
     if (!token) {
-        return res.send(`
-            <h2>
-                ลิงก์ยืนยันไม่ถูกต้อง
-            </h2>
-        `);
+        return res.redirect("/verify.html?status=invalid");
     }
 
     // =========================
@@ -351,12 +374,7 @@ app.get("/verify", (req, res) => {
         pendingUsers.get(token);
 
     if (!pendingUser) {
-
-        return res.send(`
-            <h2>
-                ลิงก์ยืนยันไม่ถูกต้องหรือถูกใช้ไปแล้ว
-            </h2>
-        `);
+        return res.redirect("/verify.html?status=invalid");
     }
 
     // =========================
@@ -396,15 +414,7 @@ app.get("/verify", (req, res) => {
                     err
                 );
 
-                return res.status(500).send(`
-                    <h2>
-                        ยืนยันอีเมลไม่สำเร็จ
-                    </h2>
-
-                    <p>
-                        ไม่สามารถสร้างบัญชีได้
-                    </p>
-                `);
+                return res.redirect("/verify.html?status=error");
             }
 
             console.log(
@@ -431,7 +441,7 @@ app.get("/verify", (req, res) => {
             // ไปหน้า verify.html
             // =========================
 
-            res.redirect("/verify.html");
+            res.redirect("/verify.html?status=success");
         }
     );
 });
