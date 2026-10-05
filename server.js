@@ -50,21 +50,23 @@ db.connect((err) => {
 
     console.log("เชื่อมต่อ MySQL สำเร็จ");
 });
-
-// =========================
 // EMAIL
-// =========================
-
 const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    service: "gmail",
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
     }
 });
 
+transporter.verify((error, success) => {
+    if (error) {
+        console.log("❌ EMAIL ERROR:");
+        console.log(error);
+    } else {
+        console.log("✅ Email server พร้อมส่ง");
+    }
+});
 // =========================
 // REGISTER
 // =========================
@@ -159,63 +161,37 @@ app.post("/register", async (req, res) => {
 
                         // ใช้ host ที่ผู้ใช้กำลังเข้าถึง
                         const verifyLink =
-                            `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
+                         `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
+                       const mailOptions = {
+    from: `"เที่ยวไหนดี สจล." <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
+    html: `
+        <div style="font-family: Arial, sans-serif;">
+            <h2>ยืนยันอีเมล</h2>
 
-                        const mailOptions = {
-                            from: process.env.EMAIL_USER,
-                            to: email,
-                            subject: "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
-                            html: `
-                                <div style="
-                                    font-family: Arial, sans-serif;
-                                    max-width: 600px;
-                                    margin: auto;
-                                    padding: 30px;
-                                    text-align: center;
-                                ">
+            <p>ขอบคุณสำหรับการสมัครสมาชิกเว็บไซต์เที่ยวไหนดี สจล.</p>
 
-                                    <h2>ยืนยันอีเมล</h2>
+            <p>กรุณากดปุ่มด้านล่างเพื่อยืนยันอีเมล</p>
 
-                                    <p>
-                                        สวัสดี ${fname}
-                                    </p>
+            <a href="${verifyLink}"
+               style="
+                   display:inline-block;
+                   padding:12px 20px;
+                   background:#333;
+                   color:white;
+                   text-decoration:none;
+                   border-radius:8px;
+               ">
+                ยืนยันอีเมล
+            </a>
 
-                                    <p>
-                                        ขอบคุณที่สมัครสมาชิก
-                                        <b>เที่ยวไหนดี สจล.</b>
-                                    </p>
-
-                                    <p>
-                                        กรุณากดปุ่มด้านล่าง
-                                        เพื่อยืนยันอีเมลของคุณ
-                                    </p>
-
-                                    <a href="${verifyLink}"
-                                       style="
-                                            display: inline-block;
-                                            padding: 12px 25px;
-                                            background: #ff8c00;
-                                            color: white;
-                                            text-decoration: none;
-                                            border-radius: 8px;
-                                            font-weight: bold;
-                                       ">
-                                        ยืนยันอีเมล
-                                    </a>
-
-                                    <p style="
-                                        margin-top: 25px;
-                                        color: #777;
-                                        font-size: 13px;
-                                    ">
-                                        หากคุณไม่ได้สมัครสมาชิก
-                                        สามารถละเว้นอีเมลนี้ได้
-                                    </p>
-
-                                </div>
-                            `
-                        };
-
+            <p style="margin-top:20px;">
+                หากคุณไม่ได้สมัครสมาชิก สามารถละเว้นอีเมลนี้ได้
+            </p>
+        </div>
+    `
+};
                         try {
 
                             await transporter.sendMail(mailOptions);
