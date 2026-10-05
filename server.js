@@ -4,7 +4,7 @@ const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const session = require("express-session");
 
 const app = express();
@@ -61,25 +61,14 @@ db.connect((err) => {
 });
 
 // =========================
-// EMAIL - GMAIL SMTP
+// EMAIL - RESEND
 // =========================
 
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD
-    }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 console.log(
-    "GMAIL_USER:",
-    process.env.GMAIL_USER ? "มีค่า" : "ไม่มีค่า"
-);
-
-console.log(
-    "GMAIL_APP_PASSWORD:",
-    process.env.GMAIL_APP_PASSWORD ? "มีค่า" : "ไม่มีค่า"
+    "RESEND_API_KEY:",
+    process.env.RESEND_API_KEY ? "มีค่า" : "ไม่มีค่า"
 );
 
 // =========================
@@ -211,7 +200,7 @@ app.post("/register", async (req, res) => {
                     `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
 
                 // =========================
-                // SEND EMAIL - GMAIL
+                // SEND EMAIL - RESEND
                 // =========================
 
                 console.log(
@@ -221,13 +210,14 @@ app.post("/register", async (req, res) => {
 
                 try {
 
-                    const info =
-                        await transporter.sendMail({
+                    const { data, error } =
+                        await resend.emails.send({
 
                             from:
-                                `"เที่ยวไหนดี สจล." <${process.env.GMAIL_USER}>`,
+                                process.env.RESEND_FROM ||
+                                "เที่ยวไหนดี สจล. <onboarding@resend.dev>",
 
-                            to: email,
+                            to: [email],
 
                             subject:
                                 "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
@@ -279,6 +269,10 @@ app.post("/register", async (req, res) => {
                             `
                         });
 
+                    if (error) {
+                        throw error;
+                    }
+
                     console.log(
                         "✅ ส่ง Email สำเร็จ:",
                         email
@@ -286,7 +280,7 @@ app.post("/register", async (req, res) => {
 
                     console.log(
                         "Message ID:",
-                        info.messageId
+                        data.id
                     );
 
                     return res.json({
