@@ -50,22 +50,46 @@ db.connect((err) => {
 
     console.log("เชื่อมต่อ MySQL สำเร็จ");
 });
+// =========================
 // EMAIL
+// =========================
+
+console.log(
+    "EMAIL_USER:",
+    process.env.EMAIL_USER ? "มีค่า" : "ไม่มีค่า"
+);
+
+console.log(
+    "EMAIL_PASS:",
+    process.env.EMAIL_PASS ? "มีค่า" : "ไม่มีค่า"
+);
+
 const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS
-    }
+    },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000
 });
 
-transporter.verify((error, success) => {
+transporter.verify((error) => {
+
     if (error) {
-        console.log("❌ EMAIL ERROR:");
+
+        console.log("❌ EMAIL ERROR");
         console.log(error);
+
     } else {
+
         console.log("✅ Email server พร้อมส่ง");
+
     }
+
 });
 // =========================
 // REGISTER
@@ -81,14 +105,22 @@ app.post("/register", async (req, res) => {
         lname
     } = req.body;
 
+
     if (!username || !email || !password || !fname || !lname) {
+
         return res.status(400).json({
             success: false,
             message: "กรุณากรอกข้อมูลให้ครบ"
         });
+
     }
 
+
     try {
+
+        // =========================
+        // CHECK USER
+        // =========================
 
         const checkSql = `
             SELECT USER_ID
@@ -97,32 +129,53 @@ app.post("/register", async (req, res) => {
                OR USER_EMAIL = ?
         `;
 
+
         db.query(
             checkSql,
             [username, email],
             async (err, results) => {
 
                 if (err) {
-                    console.log(err);
+
+                    console.log("CHECK USER ERROR:", err);
 
                     return res.status(500).json({
                         success: false,
                         message: "ตรวจสอบข้อมูลไม่สำเร็จ"
                     });
+
                 }
 
+
                 if (results.length > 0) {
+
                     return res.status(400).json({
                         success: false,
                         message: "Username หรือ Email นี้มีอยู่แล้ว"
                     });
+
                 }
+
+
+                // =========================
+                // HASH PASSWORD
+                // =========================
 
                 const hashedPassword =
                     await bcrypt.hash(password, 10);
 
+
+                // =========================
+                // CREATE TOKEN
+                // =========================
+
                 const verifyToken =
                     crypto.randomBytes(32).toString("hex");
+
+
+                // =========================
+                // INSERT USER
+                // =========================
 
                 const sql = `
                     INSERT INTO \`user\`
@@ -138,6 +191,7 @@ app.post("/register", async (req, res) => {
                     VALUES (?, ?, ?, ?, ?, 0, ?)
                 `;
 
+
                 db.query(
                     sql,
                     [
@@ -151,96 +205,203 @@ app.post("/register", async (req, res) => {
                     async (err, result) => {
 
                         if (err) {
-                            console.log(err);
+
+                            console.log("INSERT USER ERROR:", err);
 
                             return res.status(500).json({
                                 success: false,
                                 message: "สมัครสมาชิกไม่สำเร็จ"
                             });
+
                         }
 
-                        // ใช้ host ที่ผู้ใช้กำลังเข้าถึง
+
+                        console.log(
+                            "✅ INSERT USER สำเร็จ USER_ID:",
+                            result.insertId
+                        );
+
+
+                        // =========================
+                        // VERIFY LINK
+                        // =========================
+
                         const verifyLink =
-                         `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
-                       const mailOptions = {
-    from: `"เที่ยวไหนดี สจล." <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
-    html: `
-        <div style="font-family: Arial, sans-serif;">
-            <h2>ยืนยันอีเมล</h2>
+                            `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
 
-            <p>ขอบคุณสำหรับการสมัครสมาชิกเว็บไซต์เที่ยวไหนดี สจล.</p>
 
-            <p>กรุณากดปุ่มด้านล่างเพื่อยืนยันอีเมล</p>
+                        // =========================
+                        // EMAIL
+                        // =========================
 
-            <a href="${verifyLink}"
-               style="
-                   display:inline-block;
-                   padding:12px 20px;
-                   background:#333;
-                   color:white;
-                   text-decoration:none;
-                   border-radius:8px;
-               ">
-                ยืนยันอีเมล
-            </a>
+                        const mailOptions = {
 
-            <p style="margin-top:20px;">
-                หากคุณไม่ได้สมัครสมาชิก สามารถละเว้นอีเมลนี้ได้
-            </p>
-        </div>
-    `
-};
+                            from:
+                                `"เที่ยวไหนดี สจล." <${process.env.EMAIL_USER}>`,
+
+                            to: email,
+
+                            subject:
+                                "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
+
+                            html: `
+                                <div
+                                    style="
+                                        font-family: Arial, sans-serif;
+                                        max-width: 600px;
+                                        margin: auto;
+                                        padding: 20px;
+                                    "
+                                >
+
+                                    <h2>
+                                        ยืนยันอีเมล
+                                    </h2>
+
+                                    <p>
+                                        ขอบคุณสำหรับการสมัครสมาชิก
+                                        เว็บไซต์เที่ยวไหนดี สจล.
+                                    </p>
+
+                                    <p>
+                                        กรุณากดปุ่มด้านล่าง
+                                        เพื่อยืนยันอีเมลของคุณ
+                                    </p>
+
+                                    <a
+                                        href="${verifyLink}"
+                                        style="
+                                            display: inline-block;
+                                            padding: 12px 20px;
+                                            background: #333;
+                                            color: white;
+                                            text-decoration: none;
+                                            border-radius: 8px;
+                                        "
+                                    >
+                                        ยืนยันอีเมล
+                                    </a>
+
+                                    <p style="margin-top:20px;">
+                                        หากคุณไม่ได้สมัครสมาชิก
+                                        สามารถละเว้นอีเมลนี้ได้
+                                    </p>
+
+                                </div>
+                            `
+                        };
+
+
+                        // =========================
+                        // SEND EMAIL
+                        // =========================
+
+                        console.log(
+                            "📧 กำลังส่ง Email ไปที่:",
+                            email
+                        );
+
+
                         try {
 
-                            await transporter.sendMail(mailOptions);
+                            const info =
+                                await transporter.sendMail(mailOptions);
+
 
                             console.log(
-                                "ส่งอีเมลยืนยันไปที่:",
+                                "✅ ส่ง Email สำเร็จ:",
                                 email
                             );
 
+                            console.log(
+                                "Message ID:",
+                                info.messageId
+                            );
+
+
                             res.json({
+
                                 success: true,
+
                                 message:
                                     "สมัครสมาชิกสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน"
+
                             });
+
 
                         } catch (emailError) {
 
                             console.log(
-                                "ส่งอีเมลไม่สำเร็จ:",
-                                emailError
+                                "❌ ส่ง Email ไม่สำเร็จ"
                             );
+
+                            console.log(emailError);
+
+
+                            // =========================
+                            // DELETE USER
+                            // ถ้าส่งเมลไม่ได้
+                            // =========================
 
                             db.query(
-                                "DELETE FROM `user` WHERE USER_ID = ?",
-                                [result.insertId]
+                                `
+                                DELETE FROM \`user\`
+                                WHERE USER_ID = ?
+                                `,
+                                [result.insertId],
+                                (deleteErr) => {
+
+                                    if (deleteErr) {
+
+                                        console.log(
+                                            "DELETE USER ERROR:",
+                                            deleteErr
+                                        );
+
+                                    } else {
+
+                                        console.log(
+                                            "🗑️ ลบ User เพราะส่ง Email ไม่สำเร็จ"
+                                        );
+
+                                    }
+
+                                }
                             );
 
-                            res.status(500).json({
+
+                            return res.status(500).json({
+
                                 success: false,
+
                                 message:
                                     "ส่งอีเมลไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Gmail"
+
                             });
+
                         }
+
                     }
                 );
+
             }
         );
 
     } catch (error) {
 
-        console.log(error);
+        console.log("REGISTER ERROR:", error);
 
-        res.status(500).json({
+        return res.status(500).json({
+
             success: false,
-            message: "เกิดข้อผิดพลาด"
+
+            message:
+                "เกิดข้อผิดพลาดในการสมัครสมาชิก"
+
         });
+
     }
 });
-
 // =========================
 // VERIFY EMAIL
 // =========================
