@@ -7,7 +7,7 @@ const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const session = require("express-session");
 
 const app = express();
@@ -53,6 +53,16 @@ db.connect((err) => {
 
     console.log("เชื่อมต่อ MySQL สำเร็จ");
 });
+// =========================
+// EMAIL - RESEND
+// =========================
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+console.log(
+    "RESEND_API_KEY:",
+    process.env.RESEND_API_KEY ? "มีค่า" : "ไม่มีค่า"
+);
 // =========================
 // EMAIL
 // =========================
