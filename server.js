@@ -885,36 +885,37 @@ app.delete(
 
 app.get("/places", (req, res) => {
 
-    const sql = `
-        SELECT
-            P.PLACE_ID,
-            P.PLACE_NAME,
-            P.PLACE_DESCRIPTION,
-            P.PLACE_ADDRESS,
+ const sql = `
+    SELECT
+        P.PLACE_ID,
+        P.PLACE_NAME,
+        P.PLACE_DESCRIPTION,
+        P.PLACE_ADDRESS,
+        P.TYPE_ID AS TYPE_ID,
+        P.MOOD_ID AS MOOD_ID,
 
-            C.COST_ENTRANCE_FEE,
-            C.COST_AVERAGE,
+        C.COST_ENTRANCE_FEE,
+        C.COST_AVERAGE,
 
-            T.TRANSPORT_TYPE,
-            T.TRANSPORT_DESCRIPTION,
-            T.TRANSPORT_COST,
+        T.TRANSPORT_TYPE,
+        T.TRANSPORT_DESCRIPTION,
+        T.TRANSPORT_COST,
 
-            I.IMAGE_URL
+        I.IMAGE_URL
 
-        FROM place P
+    FROM place P
 
-        LEFT JOIN cost C
-            ON P.COST_ID = C.COST_ID
+    LEFT JOIN cost C
+        ON P.COST_ID = C.COST_ID
 
-        LEFT JOIN transport T
-            ON P.TRANSPORT_ID = T.TRANSPORT_ID
+    LEFT JOIN transport T
+        ON P.TRANSPORT_ID = T.TRANSPORT_ID
 
-        LEFT JOIN \`image\` I
-            ON P.PLACE_ID = I.PLACE_ID
+    LEFT JOIN \`image\` I
+        ON P.PLACE_ID = I.PLACE_ID
 
-        ORDER BY P.PLACE_ID
-    `;
-
+    ORDER BY P.PLACE_ID
+`;
     db.query(
         sql,
         (err, results) => {
