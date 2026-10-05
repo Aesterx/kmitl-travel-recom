@@ -4,25 +4,17 @@ const express = require("express");
 const mysql = require("mysql2");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 const session = require("express-session");
 
 const app = express();
 
-// =====================================================
+// =========================
 // PENDING USERS
-// =====================================================
-// เก็บข้อมูลคนที่สมัครแล้ว แต่ยังไม่ได้ยืนยันอีเมล
-// จะยังไม่ INSERT เข้า user และยังไม่มี USER_ID
-//
-// หมายเหตุ:
-// ข้อมูลส่วนนี้อยู่ใน RAM
-// ถ้า Server restart ก่อนยืนยันอีเมล
-// ข้อมูลสมัครสมาชิกที่รอยืนยันจะหาย
-// =====================================================
+// ยังไม่สร้าง USER_ID จนกว่าจะ Verify
+// =========================
 
 const pendingUsers = new Map();
-
 
 // =========================
 // MIDDLEWARE
@@ -45,7 +37,6 @@ app.use(
 
 app.use(express.static(__dirname));
 
-
 // =========================
 // MYSQL
 // =========================
@@ -60,39 +51,40 @@ const db = mysql.createConnection({
 });
 
 db.connect((err) => {
-
     if (err) {
-
         console.log("เชื่อมต่อ MySQL ไม่สำเร็จ");
         console.log(err);
-
         return;
     }
 
     console.log("เชื่อมต่อ MySQL สำเร็จ");
 });
 
-
 // =========================
-// EMAIL - RESEND
+// EMAIL - GMAIL SMTP
 // =========================
 
-const resend =
-    new Resend(
-        process.env.RESEND_API_KEY
-    );
+const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD
+    }
+});
 
 console.log(
-    "RESEND_API_KEY:",
-    process.env.RESEND_API_KEY
-        ? "มีค่า"
-        : "ไม่มีค่า"
+    "GMAIL_USER:",
+    process.env.GMAIL_USER ? "มีค่า" : "ไม่มีค่า"
 );
 
+console.log(
+    "GMAIL_APP_PASSWORD:",
+    process.env.GMAIL_APP_PASSWORD ? "มีค่า" : "ไม่มีค่า"
+);
 
-// =====================================================
+// =========================
 // REGISTER
-// =====================================================
+// =========================
 
 app.post("/register", async (req, res) => {
 
@@ -104,32 +96,18 @@ app.post("/register", async (req, res) => {
         lname
     } = req.body;
 
-
-    // =========================
-    // CHECK REQUIRED
-    // =========================
-
-    if (
-        !username ||
-        !email ||
-        !password ||
-        !fname ||
-        !lname
-    ) {
-
+    if (!username || !email || !password || !fname || !lname) {
         return res.status(400).json({
             success: false,
-            message:
-                "กรุณากรอกข้อมูลให้ครบ"
+            message: "กรุณากรอกข้อมูลให้ครบ"
         });
     }
 
-
     try {
 
-        // =================================================
+        // =========================
         // CHECK USER IN DATABASE
-        // =================================================
+        // =========================
 
         const checkSql = `
             SELECT USER_ID
@@ -140,14 +118,10 @@ app.post("/register", async (req, res) => {
 
         db.query(
             checkSql,
-            [
-                username,
-                email
-            ],
+            [username, email],
             async (err, results) => {
 
                 if (err) {
-
                     console.log(
                         "CHECK USER ERROR:",
                         err
@@ -155,18 +129,11 @@ app.post("/register", async (req, res) => {
 
                     return res.status(500).json({
                         success: false,
-                        message:
-                            "ตรวจสอบข้อมูลไม่สำเร็จ"
+                        message: "ตรวจสอบข้อมูลไม่สำเร็จ"
                     });
                 }
 
-
-                // =============================================
-                // USER / EMAIL มีอยู่ใน DATABASE แล้ว
-                // =============================================
-
                 if (results.length > 0) {
-
                     return res.status(400).json({
                         success: false,
                         message:
@@ -174,46 +141,31 @@ app.post("/register", async (req, res) => {
                     });
                 }
 
+                // =========================
+                // CHECK PENDING USERS
+                // =========================
 
-                // =================================================
-                // CHECK USER / EMAIL ที่กำลังรอยืนยัน
-                // =================================================
-
-                for (
-                    const pendingUser
-                    of pendingUsers.values()
-                ) {
+                for (const [
+                    token,
+                    pendingUser
+                ] of pendingUsers.entries()) {
 
                     if (
-                        pendingUser.username ===
-                        username
+                        pendingUser.username === username ||
+                        pendingUser.email === email
                     ) {
 
                         return res.status(400).json({
                             success: false,
                             message:
-                                "Username นี้กำลังรอยืนยันอีเมล"
-                        });
-                    }
-
-
-                    if (
-                        pendingUser.email ===
-                        email
-                    ) {
-
-                        return res.status(400).json({
-                            success: false,
-                            message:
-                                "Email นี้กำลังรอยืนยันอีเมล"
+                                "Username หรือ Email นี้กำลังรอยืนยันอีเมล"
                         });
                     }
                 }
 
-
-                // =================================================
+                // =========================
                 // HASH PASSWORD
-                // =================================================
+                // =========================
 
                 const hashedPassword =
                     await bcrypt.hash(
@@ -221,87 +173,61 @@ app.post("/register", async (req, res) => {
                         10
                     );
 
-
-                // =================================================
+                // =========================
                 // CREATE VERIFY TOKEN
-                // =================================================
+                // =========================
 
                 const verifyToken =
                     crypto
                         .randomBytes(32)
                         .toString("hex");
 
-
-                // =================================================
-                // IMPORTANT
-                // =================================================
-                // ตรงนี้ "ยังไม่ INSERT user"
-                //
-                // ดังนั้น:
-                // - ยังไม่มี USER_ID
-                // - ยังไม่มีข้อมูลใน user table
-                //
-                // เก็บข้อมูลไว้ใน pendingUsers ก่อน
-                // =================================================
+                // =========================
+                // SAVE PENDING USER
+                // ยังไม่ INSERT DATABASE
+                // =========================
 
                 pendingUsers.set(
                     verifyToken,
                     {
-                        username:
-                            username,
-
-                        email:
-                            email,
-
-                        password:
-                            hashedPassword,
-
-                        fname:
-                            fname,
-
-                        lname:
-                            lname
+                        username,
+                        email,
+                        password: hashedPassword,
+                        fname,
+                        lname
                     }
                 );
-
 
                 console.log(
                     "🕐 สมัครสมาชิก รอยืนยันอีเมล:",
                     email
                 );
 
-
-                // =================================================
+                // =========================
                 // VERIFY LINK
-                // =================================================
+                // =========================
 
                 const verifyLink =
                     `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
 
-
-                // =================================================
-                // SEND EMAIL - RESEND
-                // =================================================
+                // =========================
+                // SEND EMAIL - GMAIL
+                // =========================
 
                 console.log(
                     "📧 กำลังส่ง Email ไปที่:",
                     email
                 );
 
-
                 try {
 
-                    const {
-                        data,
-                        error
-                    } =
-                        await resend.emails.send({
+                    const info =
+                        await transporter.sendMail({
 
                             from:
-                                "เที่ยวไหนดี สจล. <onboarding@resend.dev>",
+                                `"เที่ยวไหนดี สจล." <${process.env.GMAIL_USER}>`,
 
-                            to:
-                                [email],
+                            to: email,
 
                             subject:
                                 "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
@@ -353,14 +279,6 @@ app.post("/register", async (req, res) => {
                             `
                         });
 
-
-                    if (error) {
-                        throw new Error(
-                            error.message
-                        );
-                    }
-
-
                     console.log(
                         "✅ ส่ง Email สำเร็จ:",
                         email
@@ -368,9 +286,8 @@ app.post("/register", async (req, res) => {
 
                     console.log(
                         "Message ID:",
-                        data?.id
+                        info.messageId
                     );
-
 
                     return res.json({
                         success: true,
@@ -378,30 +295,18 @@ app.post("/register", async (req, res) => {
                             "สมัครสมาชิกสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน"
                     });
 
-
                 } catch (emailError) {
 
                     console.log(
                         "❌ ส่ง Email ไม่สำเร็จ"
                     );
 
-                    console.log(
-                        emailError
-                    );
+                    console.log(emailError);
 
-
-                    // =================================================
-                    // ถ้าส่ง Email ไม่สำเร็จ
-                    // ลบข้อมูลออกจาก pendingUsers
-                    //
-                    // ไม่มี USER ใน database ให้ลบ
-                    // เพราะเรายังไม่ได้ INSERT
-                    // =================================================
-
+                    // ลบ pending user
                     pendingUsers.delete(
                         verifyToken
                     );
-
 
                     return res.status(500).json({
                         success: false,
@@ -411,7 +316,6 @@ app.post("/register", async (req, res) => {
                 }
             }
         );
-
 
     } catch (error) {
 
@@ -428,23 +332,16 @@ app.post("/register", async (req, res) => {
     }
 });
 
-
-// =====================================================
+// =========================
 // VERIFY EMAIL
-// =====================================================
+// =========================
 
 app.get("/verify", (req, res) => {
 
     const token =
         req.query.token;
 
-
-    // =========================
-    // CHECK TOKEN
-    // =========================
-
     if (!token) {
-
         return res.send(`
             <h2>
                 ลิงก์ยืนยันไม่ถูกต้อง
@@ -452,18 +349,12 @@ app.get("/verify", (req, res) => {
         `);
     }
 
-
-    // =================================================
-    // หา User ที่รอยืนยันจาก RAM
-    // =================================================
+    // =========================
+    // GET PENDING USER
+    // =========================
 
     const pendingUser =
         pendingUsers.get(token);
-
-
-    // =================================================
-    // TOKEN ไม่มี / ถูกใช้แล้ว / หมดจาก RAM
-    // =================================================
 
     if (!pendingUser) {
 
@@ -474,10 +365,10 @@ app.get("/verify", (req, res) => {
         `);
     }
 
-
-    // =================================================
-    // INSERT USER ตอนยืนยันอีเมลเท่านั้น
-    // =================================================
+    // =========================
+    // INSERT USER
+    // ตอนนี้เท่านั้นที่สร้าง USER_ID
+    // =========================
 
     const insertSql = `
         INSERT INTO \`user\`
@@ -492,7 +383,6 @@ app.get("/verify", (req, res) => {
         )
         VALUES (?, ?, ?, ?, ?, 1, NULL)
     `;
-
 
     db.query(
         insertSql,
@@ -512,82 +402,49 @@ app.get("/verify", (req, res) => {
                     err
                 );
 
-
-                // =================================================
-                // กรณี Username / Email ซ้ำ
-                // =================================================
-
-                if (
-                    err.code === "ER_DUP_ENTRY"
-                ) {
-
-                    pendingUsers.delete(
-                        token
-                    );
-
-                    return res.send(`
-                        <h2>
-                            Username หรือ Email นี้มีอยู่แล้ว
-                        </h2>
-
-                        <p>
-                            กรุณาสมัครสมาชิกใหม่
-                        </p>
-                    `);
-                }
-
-
                 return res.status(500).send(`
                     <h2>
                         ยืนยันอีเมลไม่สำเร็จ
                     </h2>
 
                     <p>
-                        กรุณาลองใหม่อีกครั้ง
+                        ไม่สามารถสร้างบัญชีได้
                     </p>
                 `);
             }
 
-
-            // =================================================
-            // MySQL สร้าง USER_ID ให้ตรงนี้
-            // =================================================
-
             console.log(
-                "✅ ยืนยัน Email สำเร็จ"
+                "✅ VERIFY สำเร็จ"
             );
 
             console.log(
-                "✅ INSERT USER สำเร็จ USER_ID:",
+                "สร้าง USER_ID:",
                 result.insertId
             );
 
-
-            // =================================================
-            // ลบข้อมูลออกจาก pendingUsers
-            // เพื่อไม่ให้ Token ใช้ซ้ำ
-            // =================================================
-
-            pendingUsers.delete(
-                token
+            console.log(
+                "Email:",
+                pendingUser.email
             );
 
+            // =========================
+            // ลบข้อมูลที่รอยืนยัน
+            // =========================
 
-            // =================================================
+            pendingUsers.delete(token);
+
+            // =========================
             // ไปหน้า verify.html
-            // =================================================
+            // =========================
 
-            res.redirect(
-                "/verify.html"
-            );
+            res.redirect("/verify.html");
         }
     );
 });
 
-
-// =====================================================
+// =========================
 // LOGIN
-// =====================================================
+// =========================
 
 app.post("/login", (req, res) => {
 
@@ -596,11 +453,7 @@ app.post("/login", (req, res) => {
         password
     } = req.body;
 
-
-    if (
-        !username ||
-        !password
-    ) {
+    if (!username || !password) {
 
         return res.status(400).json({
             success: false,
@@ -608,7 +461,6 @@ app.post("/login", (req, res) => {
                 "กรุณากรอกชื่อผู้ใช้และรหัสผ่าน"
         });
     }
-
 
     const sql = `
         SELECT
@@ -621,7 +473,6 @@ app.post("/login", (req, res) => {
         FROM \`user\`
         WHERE USER_USERNAME = ?
     `;
-
 
     db.query(
         sql,
@@ -639,10 +490,7 @@ app.post("/login", (req, res) => {
                 });
             }
 
-
-            if (
-                results.length === 0
-            ) {
+            if (results.length === 0) {
 
                 return res.status(401).json({
                     success: false,
@@ -651,17 +499,14 @@ app.post("/login", (req, res) => {
                 });
             }
 
-
             const user =
                 results[0];
-
 
             const passwordMatch =
                 await bcrypt.compare(
                     password,
                     user.USER_PASSWORD
                 );
-
 
             if (!passwordMatch) {
 
@@ -671,11 +516,6 @@ app.post("/login", (req, res) => {
                         "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง"
                 });
             }
-
-
-            // =================================================
-            // ต้องยืนยัน Email ก่อน Login
-            // =================================================
 
             if (
                 Number(
@@ -690,22 +530,15 @@ app.post("/login", (req, res) => {
                 });
             }
 
-
             req.session.user = {
-
-                id:
-                    user.USER_ID,
-
+                id: user.USER_ID,
                 username:
                     user.USER_USERNAME,
-
                 fname:
                     user.USER_FNAME,
-
                 lname:
                     user.USER_LNAME
             };
-
 
             res.json({
                 success: true,
@@ -716,10 +549,9 @@ app.post("/login", (req, res) => {
     );
 });
 
-
-// =====================================================
+// =========================
 // CHECK LOGIN
-// =====================================================
+// =========================
 
 app.get("/me", (req, res) => {
 
@@ -730,18 +562,15 @@ app.get("/me", (req, res) => {
         });
     }
 
-
     res.json({
         loggedIn: true,
-        user:
-            req.session.user
+        user: req.session.user
     });
 });
 
-
-// =====================================================
+// =========================
 // LOGOUT
-// =====================================================
+// =========================
 
 app.get("/logout", (req, res) => {
 
@@ -756,7 +585,6 @@ app.get("/logout", (req, res) => {
             });
         }
 
-
         res.json({
             success: true,
             message:
@@ -764,7 +592,6 @@ app.get("/logout", (req, res) => {
         });
     });
 });
-
 
 // =====================================================
 // REVIEW SUMMARY
@@ -776,7 +603,6 @@ app.get(
 
         const placeId =
             req.params.id;
-
 
         const sql = `
             SELECT
@@ -791,7 +617,6 @@ app.get(
 
             WHERE PLACE_ID = ?
         `;
-
 
         db.query(
             sql,
@@ -808,15 +633,11 @@ app.get(
                     });
                 }
 
-
-                res.json(
-                    results[0]
-                );
+                res.json(results[0]);
             }
         );
     }
 );
-
 
 // =====================================================
 // CHECK FAVORITE
@@ -833,13 +654,11 @@ app.get(
             });
         }
 
-
         const userId =
             req.session.user.id;
 
         const placeId =
             req.params.placeId;
-
 
         const sql = `
             SELECT FAVORITE_ID
@@ -848,13 +667,9 @@ app.get(
             AND PLACE_ID = ?
         `;
 
-
         db.query(
             sql,
-            [
-                userId,
-                placeId
-            ],
+            [userId, placeId],
             (err, results) => {
 
                 if (err) {
@@ -870,7 +685,6 @@ app.get(
                     });
                 }
 
-
                 res.json({
                     isFavorite:
                         results.length > 0
@@ -880,73 +694,62 @@ app.get(
     }
 );
 
-
 // =====================================================
 // GET FAVORITES
 // =====================================================
 
-app.get(
-    "/favorites",
-    (req, res) => {
+app.get("/favorites", (req, res) => {
 
-        if (!req.session.user) {
+    if (!req.session.user) {
 
-            return res.status(401).json({
-                success: false,
-                message:
-                    "กรุณาเข้าสู่ระบบก่อน"
-            });
-        }
-
-
-        const userId =
-            req.session.user.id;
-
-
-        const sql = `
-            SELECT
-                P.PLACE_ID,
-                P.PLACE_NAME,
-                P.PLACE_DESCRIPTION,
-                P.PLACE_ADDRESS,
-                F.FAVORITE_ID
-
-            FROM favorite F
-
-            JOIN place P
-                ON F.PLACE_ID = P.PLACE_ID
-
-            WHERE F.USER_ID = ?
-
-            ORDER BY F.FAVORITE_ID DESC
-        `;
-
-
-        db.query(
-            sql,
-            [userId],
-            (err, results) => {
-
-                if (err) {
-
-                    console.log(err);
-
-                    return res.status(500).json({
-                        success: false,
-                        message:
-                            err.message
-                    });
-                }
-
-
-                res.json(
-                    results
-                );
-            }
-        );
+        return res.status(401).json({
+            success: false,
+            message:
+                "กรุณาเข้าสู่ระบบก่อน"
+        });
     }
-);
 
+    const userId =
+        req.session.user.id;
+
+    const sql = `
+        SELECT
+            P.PLACE_ID,
+            P.PLACE_NAME,
+            P.PLACE_DESCRIPTION,
+            P.PLACE_ADDRESS,
+            F.FAVORITE_ID
+
+        FROM favorite F
+
+        JOIN place P
+            ON F.PLACE_ID = P.PLACE_ID
+
+        WHERE F.USER_ID = ?
+
+        ORDER BY F.FAVORITE_ID DESC
+    `;
+
+    db.query(
+        sql,
+        [userId],
+        (err, results) => {
+
+            if (err) {
+
+                console.log(err);
+
+                return res.status(500).json({
+                    success: false,
+                    message:
+                        err.message
+                });
+            }
+
+            res.json(results);
+        }
+    );
+});
 
 // =====================================================
 // ADD FAVORITE
@@ -965,13 +768,11 @@ app.post(
             });
         }
 
-
         const userId =
             req.session.user.id;
 
         const placeId =
             req.params.placeId;
-
 
         const checkSql = `
             SELECT FAVORITE_ID
@@ -980,13 +781,9 @@ app.post(
             AND PLACE_ID = ?
         `;
 
-
         db.query(
             checkSql,
-            [
-                userId,
-                placeId
-            ],
+            [userId, placeId],
             (err, results) => {
 
                 if (err) {
@@ -998,10 +795,7 @@ app.post(
                     });
                 }
 
-
-                if (
-                    results.length > 0
-                ) {
+                if (results.length > 0) {
 
                     return res.json({
                         success: false,
@@ -1009,7 +803,6 @@ app.post(
                             "สถานที่นี้อยู่ในรายการโปรดแล้ว"
                     });
                 }
-
 
                 const insertSql = `
                     INSERT INTO favorite
@@ -1033,13 +826,9 @@ app.post(
                     )
                 `;
 
-
                 db.query(
                     insertSql,
-                    [
-                        userId,
-                        placeId
-                    ],
+                    [userId, placeId],
                     (err, result) => {
 
                         if (err) {
@@ -1053,7 +842,6 @@ app.post(
                             });
                         }
 
-
                         res.json({
                             success: true,
                             message:
@@ -1065,7 +853,6 @@ app.post(
         );
     }
 );
-
 
 // =====================================================
 // DELETE FAVORITE
@@ -1084,13 +871,11 @@ app.delete(
             });
         }
 
-
         const userId =
             req.session.user.id;
 
         const placeId =
             req.params.placeId;
-
 
         const sql = `
             DELETE FROM favorite
@@ -1098,13 +883,9 @@ app.delete(
             AND PLACE_ID = ?
         `;
 
-
         db.query(
             sql,
-            [
-                userId,
-                placeId
-            ],
+            [userId, placeId],
             (err, result) => {
 
                 if (err) {
@@ -1118,7 +899,6 @@ app.delete(
                     });
                 }
 
-
                 res.json({
                     success: true,
                     message:
@@ -1129,16 +909,79 @@ app.delete(
     }
 );
 
-
-// =====================================================
+// =========================
 // PLACES
-// =====================================================
+// =========================
 
 // GET ALL PLACES
 
+app.get("/places", (req, res) => {
+
+    const sql = `
+        SELECT
+            P.PLACE_ID,
+            P.PLACE_NAME,
+            P.PLACE_DESCRIPTION,
+            P.PLACE_ADDRESS,
+
+            P.TYPE_ID AS TYPE_ID,
+            P.MOOD_ID AS MOOD_ID,
+
+            C.COST_ENTRANCE_FEE,
+            C.COST_AVERAGE,
+
+            T.TRANSPORT_TYPE,
+            T.TRANSPORT_DESCRIPTION,
+            T.TRANSPORT_COST,
+
+            I.IMAGE_URL
+
+        FROM place P
+
+        LEFT JOIN cost C
+            ON P.COST_ID = C.COST_ID
+
+        LEFT JOIN transport T
+            ON P.TRANSPORT_ID = T.TRANSPORT_ID
+
+        LEFT JOIN \`image\` I
+            ON P.PLACE_ID = I.PLACE_ID
+
+        ORDER BY P.PLACE_ID
+    `;
+
+    db.query(
+        sql,
+        (err, results) => {
+
+            if (err) {
+
+                console.log(
+                    "GET PLACES ERROR:",
+                    err
+                );
+
+                return res.status(500).json({
+                    error:
+                        err.message
+                });
+            }
+
+            res.json(results);
+        }
+    );
+});
+
+// =========================
+// GET PLACE BY ID
+// =========================
+
 app.get(
-    "/places",
+    "/places/:id",
     (req, res) => {
+
+        const placeId =
+            req.params.id;
 
         const sql = `
             SELECT
@@ -1170,79 +1013,8 @@ app.get(
             LEFT JOIN \`image\` I
                 ON P.PLACE_ID = I.PLACE_ID
 
-            ORDER BY P.PLACE_ID
-        `;
-
-
-        db.query(
-            sql,
-            (err, results) => {
-
-                if (err) {
-
-                    console.log(
-                        "GET PLACES ERROR:",
-                        err
-                    );
-
-                    return res.status(500).json({
-                        error:
-                            err.message
-                    });
-                }
-
-
-                res.json(
-                    results
-                );
-            }
-        );
-    }
-);
-
-
-// =====================================================
-// GET PLACE BY ID
-// =====================================================
-
-app.get(
-    "/places/:id",
-    (req, res) => {
-
-        const placeId =
-            req.params.id;
-
-
-        const sql = `
-            SELECT
-                P.PLACE_ID,
-                P.PLACE_NAME,
-                P.PLACE_DESCRIPTION,
-                P.PLACE_ADDRESS,
-
-                C.COST_ENTRANCE_FEE,
-                C.COST_AVERAGE,
-
-                T.TRANSPORT_TYPE,
-                T.TRANSPORT_DESCRIPTION,
-                T.TRANSPORT_COST,
-
-                I.IMAGE_URL
-
-            FROM place P
-
-            LEFT JOIN cost C
-                ON P.COST_ID = C.COST_ID
-
-            LEFT JOIN transport T
-                ON P.TRANSPORT_ID = T.TRANSPORT_ID
-
-            LEFT JOIN \`image\` I
-                ON P.PLACE_ID = I.PLACE_ID
-
             WHERE P.PLACE_ID = ?
         `;
-
 
         db.query(
             sql,
@@ -1262,10 +1034,7 @@ app.get(
                     });
                 }
 
-
-                if (
-                    results.length === 0
-                ) {
+                if (results.length === 0) {
 
                     return res.status(404).json({
                         error:
@@ -1273,19 +1042,15 @@ app.get(
                     });
                 }
 
-
-                res.json(
-                    results[0]
-                );
+                res.json(results[0]);
             }
         );
     }
 );
 
-
-// =====================================================
+// =========================
 // GET REVIEWS
-// =====================================================
+// =========================
 
 app.get(
     "/places/:id/reviews",
@@ -1293,7 +1058,6 @@ app.get(
 
         const placeId =
             req.params.id;
-
 
         const sql = `
             SELECT
@@ -1315,7 +1079,6 @@ app.get(
             ORDER BY R.REVIEW_DATE DESC
         `;
 
-
         db.query(
             sql,
             [placeId],
@@ -1331,19 +1094,15 @@ app.get(
                     });
                 }
 
-
-                res.json(
-                    results
-                );
+                res.json(results);
             }
         );
     }
 );
 
-
-// =====================================================
+// =========================
 // ADD REVIEW
-// =====================================================
+// =========================
 
 app.post(
     "/places/:id/reviews",
@@ -1358,19 +1117,16 @@ app.post(
             });
         }
 
-
         const placeId =
             req.params.id;
 
         const userId =
             req.session.user.id;
 
-
         const {
             rating,
             comment
         } = req.body;
-
 
         if (!rating) {
 
@@ -1380,7 +1136,6 @@ app.post(
                     "กรุณาให้คะแนน"
             });
         }
-
 
         const sql = `
             INSERT INTO review
@@ -1393,7 +1148,6 @@ app.post(
             )
             VALUES (?, ?, ?, ?, NOW())
         `;
-
 
         db.query(
             sql,
@@ -1416,7 +1170,6 @@ app.post(
                     });
                 }
 
-
                 res.json({
                     success: true,
                     message:
@@ -1427,14 +1180,12 @@ app.post(
     }
 );
 
-
-// =====================================================
+// =========================
 // START SERVER
-// =====================================================
+// =========================
 
 const PORT =
     process.env.PORT || 3000;
-
 
 app.listen(
     PORT,
@@ -1443,6 +1194,5 @@ app.listen(
         console.log(
             `เว็บไซต์เปิดที่ port ${PORT}`
         );
-
     }
 );
