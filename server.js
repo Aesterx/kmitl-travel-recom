@@ -8,11 +8,15 @@ const nodemailer = require("nodemailer");
 const session = require("express-session");
 
 const app = express();
+
 app.use(express.static(__dirname + "/public"));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// =========================
 // SESSION
+// =========================
+
 app.use(session({
     secret: "kmitl-travel-secret",
     resave: false,
@@ -34,7 +38,7 @@ const db = mysql.createConnection({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
     port: process.env.DB_PORT || 3306,
-    charset: 'utf8mb4'
+    charset: "utf8mb4"
 });
 
 db.connect((err) => {
@@ -84,7 +88,6 @@ app.post("/register", async (req, res) => {
 
     try {
 
-        // ตรวจ Username / Email ซ้ำ
         const checkSql = `
             SELECT USER_ID
             FROM \`user\`
@@ -113,15 +116,12 @@ app.post("/register", async (req, res) => {
                     });
                 }
 
-                // เข้ารหัส Password
                 const hashedPassword =
                     await bcrypt.hash(password, 10);
 
-                // สร้าง Token สำหรับลิงก์ยืนยัน
                 const verifyToken =
                     crypto.randomBytes(32).toString("hex");
 
-                // บันทึก User
                 const sql = `
                     INSERT INTO \`user\`
                     (
@@ -157,16 +157,9 @@ app.post("/register", async (req, res) => {
                             });
                         }
 
-                        // =========================
-                        // สร้างลิงก์ยืนยัน
-                        // =========================
-
+                        // ใช้ host ที่ผู้ใช้กำลังเข้าถึง
                         const verifyLink =
-                            http//localhost:3000/verify?token=${verifyToken};
-
-                        // =========================
-                        // ส่ง Email
-                        // =========================
+                            `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
 
                         const mailOptions = {
                             from: process.env.EMAIL_USER,
@@ -245,9 +238,8 @@ app.post("/register", async (req, res) => {
                                 emailError
                             );
 
-                            // ถ้าส่งเมลไม่ได้ ลบ User ที่เพิ่งสร้าง
                             db.query(
-                                "DELETE FROM \`user\` WHERE USER_ID = ?",
+                                "DELETE FROM `user` WHERE USER_ID = ?",
                                 [result.insertId]
                             );
 
@@ -256,12 +248,9 @@ app.post("/register", async (req, res) => {
                                 message:
                                     "ส่งอีเมลไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Gmail"
                             });
-
                         }
-
                     }
                 );
-
             }
         );
 
@@ -273,9 +262,7 @@ app.post("/register", async (req, res) => {
             success: false,
             message: "เกิดข้อผิดพลาด"
         });
-
     }
-
 });
 
 // =========================
@@ -341,16 +328,16 @@ app.get("/verify", (req, res) => {
                     }
 
                     res.redirect("/verify.html");
-
                 }
             );
-
         }
     );
-
 });
 
+// =========================
 // LOGIN
+// =========================
+
 app.post("/login", (req, res) => {
 
     const { username, password } = req.body;
@@ -394,7 +381,6 @@ app.post("/login", (req, res) => {
 
         const user = results[0];
 
-        // ตรวจสอบรหัสผ่าน
         const passwordMatch = await bcrypt.compare(
             password,
             user.USER_PASSWORD
@@ -407,15 +393,13 @@ app.post("/login", (req, res) => {
             });
         }
 
-        // ตรวจสอบการยืนยันอีเมล
-      if (Number(user.USER_EMAIL_VERIFIED) !== 1) {
+        if (Number(user.USER_EMAIL_VERIFIED) !== 1) {
             return res.status(403).json({
                 success: false,
                 message: "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ"
             });
         }
 
-        // บันทึกข้อมูลผู้ใช้ลง Session
         req.session.user = {
             id: user.USER_ID,
             username: user.USER_USERNAME,
@@ -427,12 +411,13 @@ app.post("/login", (req, res) => {
             success: true,
             message: "เข้าสู่ระบบสำเร็จ"
         });
-
     });
-
 });
 
+// =========================
 // CHECK LOGIN
+// =========================
+
 app.get("/me", (req, res) => {
 
     if (!req.session.user) {
@@ -445,10 +430,12 @@ app.get("/me", (req, res) => {
         loggedIn: true,
         user: req.session.user
     });
-
 });
 
+// =========================
 // LOGOUT
+// =========================
+
 app.get("/logout", (req, res) => {
 
     req.session.destroy((err) => {
@@ -464,13 +451,12 @@ app.get("/logout", (req, res) => {
             success: true,
             message: "ออกจากระบบสำเร็จ"
         });
-
     });
-
 });
-// =========================
-// GET REVIEW SUMMARY
-// =========================
+
+// =====================================================
+// REVIEW SUMMARY
+// =====================================================
 
 app.get("/places/:id/review-summary", (req, res) => {
 
@@ -480,7 +466,7 @@ app.get("/places/:id/review-summary", (req, res) => {
         SELECT
             ROUND(AVG(REVIEW_RATING), 1) AS AVERAGE_RATING,
             COUNT(*) AS REVIEW_COUNT
-        FROM REVIEW
+        FROM review
         WHERE PLACE_ID = ?
     `;
 
@@ -495,10 +481,9 @@ app.get("/places/:id/review-summary", (req, res) => {
         }
 
         res.json(results[0]);
-
     });
-
 });
+
 // =====================================================
 // CHECK FAVORITE
 // =====================================================
@@ -506,27 +491,20 @@ app.get("/places/:id/review-summary", (req, res) => {
 app.get("/favorites/:placeId/check", (req, res) => {
 
     if (!req.session.user) {
-
         return res.json({
             isFavorite: false
         });
-
     }
 
-    const userId =
-        req.session.user.id;
-
-    const placeId =
-        req.params.placeId;
-
+    const userId = req.session.user.id;
+    const placeId = req.params.placeId;
 
     const sql = `
         SELECT FAVORITE_ID
-        FROM FAVORITE
+        FROM favorite
         WHERE USER_ID = ?
         AND PLACE_ID = ?
     `;
-
 
     db.query(
         sql,
@@ -534,30 +512,24 @@ app.get("/favorites/:placeId/check", (req, res) => {
         (err, results) => {
 
             if (err) {
-
-                console.log(
-                    "CHECK FAVORITE ERROR:",
-                    err
-                );
+                console.log("CHECK FAVORITE ERROR:", err);
 
                 return res.status(500).json({
                     error: err.message
                 });
-
             }
 
-
             res.json({
-
-                isFavorite:
-                    results.length > 0
-
+                isFavorite: results.length > 0
             });
-
         }
     );
-
 });
+
+// =====================================================
+// GET FAVORITES
+// =====================================================
+
 app.get("/favorites", (req, res) => {
 
     if (!req.session.user) {
@@ -576,8 +548,8 @@ app.get("/favorites", (req, res) => {
             P.PLACE_DESCRIPTION,
             P.PLACE_ADDRESS,
             F.FAVORITE_ID
-        FROM FAVORITE F
-        JOIN PLACE P
+        FROM favorite F
+        JOIN place P
             ON F.PLACE_ID = P.PLACE_ID
         WHERE F.USER_ID = ?
         ORDER BY F.FAVORITE_ID DESC
@@ -597,6 +569,11 @@ app.get("/favorites", (req, res) => {
         res.json(results);
     });
 });
+
+// =====================================================
+// ADD FAVORITE
+// =====================================================
+
 app.post("/favorites/:placeId", (req, res) => {
 
     if (!req.session.user) {
@@ -611,7 +588,7 @@ app.post("/favorites/:placeId", (req, res) => {
 
     const checkSql = `
         SELECT FAVORITE_ID
-        FROM FAVORITE
+        FROM favorite
         WHERE USER_ID = ?
         AND PLACE_ID = ?
     `;
@@ -636,7 +613,7 @@ app.post("/favorites/:placeId", (req, res) => {
             }
 
             const insertSql = `
-                INSERT INTO FAVORITE
+                INSERT INTO favorite
                 (
                     FAVORITE_ID,
                     USER_ID,
@@ -645,7 +622,7 @@ app.post("/favorites/:placeId", (req, res) => {
                 VALUES (
                     (
                         SELECT COALESCE(MAX(FAVORITE_ID), 0) + 1
-                        FROM FAVORITE AS F2
+                        FROM favorite AS F2
                     ),
                     ?,
                     ?
@@ -675,6 +652,11 @@ app.post("/favorites/:placeId", (req, res) => {
         }
     );
 });
+
+// =====================================================
+// DELETE FAVORITE
+// =====================================================
+
 app.delete("/favorites/:placeId", (req, res) => {
 
     if (!req.session.user) {
@@ -688,7 +670,7 @@ app.delete("/favorites/:placeId", (req, res) => {
     const placeId = req.params.placeId;
 
     const sql = `
-        DELETE FROM FAVORITE
+        DELETE FROM favorite
         WHERE USER_ID = ?
         AND PLACE_ID = ?
     `;
@@ -714,51 +696,13 @@ app.delete("/favorites/:placeId", (req, res) => {
         }
     );
 });
-app.get("/favorites/:placeId/check", (req, res) => {
 
-    if (!req.session.user) {
-        return res.json({
-            isFavorite: false
-        });
-    }
-
-    const userId = req.session.user.id;
-    const placeId = req.params.placeId;
-
-    const sql = `
-        SELECT FAVORITE_ID
-        FROM FAVORITE
-        WHERE USER_ID = ?
-        AND PLACE_ID = ?
-    `;
-
-    db.query(
-        sql,
-        [userId, placeId],
-        (err, results) => {
-
-            if (err) {
-                console.log(err);
-
-                return res.status(500).json({
-                    error: err.message
-                });
-            }
-
-            res.json({
-                isFavorite: results.length > 0
-            });
-        }
-    );
-});
-// =========================
-// PLACES
-// =========================
 // =========================
 // PLACES
 // =========================
 
 // GET ALL PLACES
+
 app.get("/places", (req, res) => {
 
     const sql = `
@@ -773,15 +717,15 @@ app.get("/places", (req, res) => {
             T.TRANSPORT_DESCRIPTION,
             T.TRANSPORT_COST,
             I.IMAGE_URL
-        FROM PLACE P
+        FROM place P
 
-        LEFT JOIN COST C
+        LEFT JOIN cost C
             ON P.COST_ID = C.COST_ID
 
-        LEFT JOIN TRANSPORT T
+        LEFT JOIN transport T
             ON P.TRANSPORT_ID = T.TRANSPORT_ID
 
-        LEFT JOIN \`IMAGE\` I
+        LEFT JOIN \`image\` I
             ON P.PLACE_ID = I.PLACE_ID
 
         ORDER BY P.PLACE_ID
@@ -798,13 +742,13 @@ app.get("/places", (req, res) => {
         }
 
         res.json(results);
-
     });
-
 });
 
-
+// =========================
 // GET PLACE BY ID
+// =========================
+
 app.get("/places/:id", (req, res) => {
 
     const placeId = req.params.id;
@@ -821,15 +765,15 @@ app.get("/places/:id", (req, res) => {
             T.TRANSPORT_DESCRIPTION,
             T.TRANSPORT_COST,
             I.IMAGE_URL
-        FROM PLACE P
+        FROM place P
 
-        LEFT JOIN COST C
+        LEFT JOIN cost C
             ON P.COST_ID = C.COST_ID
 
-        LEFT JOIN TRANSPORT T
+        LEFT JOIN transport T
             ON P.TRANSPORT_ID = T.TRANSPORT_ID
 
-        LEFT JOIN \`IMAGE\` I
+        LEFT JOIN \`image\` I
             ON P.PLACE_ID = I.PLACE_ID
 
         WHERE P.PLACE_ID = ?
@@ -846,18 +790,15 @@ app.get("/places/:id", (req, res) => {
         }
 
         if (results.length === 0) {
-
             return res.status(404).json({
                 error: "ไม่พบสถานที่"
             });
-
         }
 
         res.json(results[0]);
-
     });
-
 });
+
 // =========================
 // GET REVIEWS
 // =========================
@@ -875,7 +816,7 @@ app.get("/places/:id/reviews", (req, res) => {
             R.REVIEW_RATING,
             R.REVIEW_COMMENT,
             R.REVIEW_DATE
-        FROM REVIEW R
+        FROM review R
         JOIN \`user\` U
             ON R.USER_ID = U.USER_ID
         WHERE R.PLACE_ID = ?
@@ -893,10 +834,9 @@ app.get("/places/:id/reviews", (req, res) => {
         }
 
         res.json(results);
-
     });
-
 });
+
 // =========================
 // ADD REVIEW
 // =========================
@@ -926,7 +866,7 @@ app.post("/places/:id/reviews", (req, res) => {
     }
 
     const sql = `
-        INSERT INTO REVIEW
+        INSERT INTO review
         (
             USER_ID,
             PLACE_ID,
@@ -943,7 +883,6 @@ app.post("/places/:id/reviews", (req, res) => {
         (err, result) => {
 
             if (err) {
-
                 console.log(err);
 
                 return res.status(500).json({
@@ -956,11 +895,10 @@ app.post("/places/:id/reviews", (req, res) => {
                 success: true,
                 message: "เพิ่มรีวิวสำเร็จ"
             });
-
         }
     );
-
 });
+
 // =========================
 // START SERVER
 // =========================
@@ -968,4 +906,5 @@ app.post("/places/:id/reviews", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log(`เว็บไซต์เปิดที่ port ${PORT}`);});
+    console.log(`เว็บไซต์เปิดที่ port ${PORT}`);
+});
