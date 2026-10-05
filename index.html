@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>เที่ยวไหนดี สจล.</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+
+<body>
+
+
+    <!-- =========================
+         HEADER
+    ========================== -->
+
+    <header>
+
+        <div class="logo">
+            เที่ยวไหนดี สจล.
+        </div>
+
+        <nav>
+
+            <a
+                href="#"
+                onclick="showHome(); return false;"
+            >
+                หน้าหลัก
+            </a>
+
+            <a
+                href="#"
+                onclick="showPlaces(); return false;"
+            >
+                สถานที่
+            </a>
+
+            <a
+                href="#"
+                onclick="showAbout(); return false;"
+            >
+                เกี่ยวกับเรา
+            </a>
+
+            <span id="userMenu">
+
+                <a
+                    href="login.html"
+                    class="login-btn"
+                >
+                    เข้าสู่ระบบ
+                </a>
+
+            </span>
+
+        </nav>
+
+    </header>
+
+
+    <!-- =========================
+         HERO / SEARCH
+    ========================== -->
+
+    <section class="hero">
+
+        <div class="search">
+
+            <input
+                type="text"
+                id="searchInput"
+                placeholder="ค้นหาสถานที่..."
+            >
+
+            <button onclick="searchPlace()">
+                ค้นหา
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         HOME
+    ========================== -->
+
+    <section
+        class="content"
+        id="homePage"
+    >
+
+        <h2>เมนู</h2>
+
+        <div class="cards">
+
+
+            <!-- ประเภทสถานที่ -->
+
+            <div
+                class="card"
+                onclick="showTypes()"
+            >
+
+                <div class="icon">
+                    🏷️
+                </div>
+
+                <h3>
+                    ประเภทสถานที่
+                </h3>
+
+                <p>
+                    เลือกสถานที่ตามประเภทที่สนใจ
+                </p>
+
+            </div>
+
+
+            <!-- บรรยากาศ -->
+
+            <div
+                class="card"
+                onclick="showMoods()"
+            >
+
+                <div class="icon">
+                    😊
+                </div>
+
+                <h3>
+                    บรรยากาศ
+                </h3>
+
+                <p>
+                    เลือกสถานที่ให้เหมาะกับอารมณ์และความรู้สึก
+                </p>
+
+            </div>
+
+
+            <!-- รายการโปรด -->
+
+            <div
+                class="card"
+                onclick="showFavorites()"
+            >
+
+                <div class="icon">
+                    ⭐
+                </div>
+
+                <h3>
+                    รายการโปรด
+                </h3>
+
+                <p>
+                    เก็บสถานที่ที่ชื่นชอบไว้ดูภายหลัง
+                </p>
+
+            </div>
+
+
+            <!-- สุ่มสถานที่ -->
+
+            <div
+                class="card"
+                onclick="randomPlace()"
+            >
+
+                <div class="icon">
+                    🎲
+                </div>
+
+                <h3>
+                    สุ่มสถานที่
+                </h3>
+
+                <p>
+                    ไม่รู้จะไปไหน ให้เราช่วยเลือกให้
+                </p>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         PLACES PAGE
+    ========================== -->
+
+    <section
+        class="content"
+        id="placesPage"
+        style="display: none;"
+    >
+
+        <h2 id="placesTitle">
+            สถานที่
+        </h2>
+
+        <div
+            class="cards"
+            id="placeCards"
+        ></div>
+
+        <div class="back-button">
+
+            <button
+                id="placesBackButton"
+                onclick="goBackFromPlaces()"
+            >
+                ← กลับ
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         FAVORITES PAGE
+    ========================== -->
+
+    <section
+        class="content"
+        id="favoritesPage"
+        style="display: none;"
+    >
+
+        <h2>
+            ⭐ รายการโปรด
+        </h2>
+
+        <div
+            class="cards"
+            id="favoriteCards"
+        ></div>
+
+        <div class="back-button">
+
+            <button onclick="showHome()">
+                ← กลับหน้าหลัก
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         ABOUT PAGE
+    ========================== -->
+
+    <section
+        class="content"
+        id="aboutPage"
+        style="display: none;"
+    >
+
+        <h2>
+            เกี่ยวกับเรา
+        </h2>
+
+        <div class="about-box">
+
+            <h3>
+                ที่มาและความสำคัญของโครงงาน
+            </h3>
+
+            <p>
+
+                ปัจจุบันการเดินทางไปยังสถานที่ต่าง ๆ ในบริเวณโดยรอบสถาบันพระจอมเกล้าเจ้าคุณทหารลาดกระบังมีความหลากหลาย ทั้งการเดิน รถจักรยานยนต์รับจ้าง รถสองแถว รถโดยสารสาธารณะ และรูปแบบการเดินทางอื่น ๆ อย่างไรก็ตาม นักศึกษา โดยเฉพาะนักศึกษาใหม่ รวมถึงบุคคลทั่วไปที่ไม่คุ้นเคยกับพื้นที่ อาจประสบปัญหาในการค้นหาข้อมูลเกี่ยวกับเส้นทาง วิธีการเดินทาง ค่าใช้จ่าย และระยะเวลาในการเดินทางไปยังสถานที่ต่าง ๆ
+
+                บริเวณโดยรอบสถาบันพระจอมเกล้าเจ้าคุณทหารลาดกระบังยังมีสถานที่ที่น่าสนใจหลากหลายประเภท เช่น ร้านอาหาร คาเฟ่ ตลาด สถานที่ท่องเที่ยว และสถานที่สำคัญในชุมชน ตัวอย่างเช่น ตลาดเก่าหัวตะเข้ ซึ่งเป็นสถานที่ที่อยู่ใกล้กับสถาบันและได้รับความสนใจจากนักศึกษาและบุคคลทั่วไป อย่างไรก็ตาม ข้อมูลเกี่ยวกับการเดินทางไปยังสถานที่เหล่านี้อาจมีการกระจัดกระจายอยู่ตามแหล่งข้อมูลต่าง ๆ ทำให้ผู้ใช้งานต้องใช้เวลาในการค้นหาและเปรียบเทียบข้อมูลด้วยตนเอง
+
+                ด้วยเหตุนี้ คณะผู้จัดทำจึงมีแนวคิดในการพัฒนาเว็บไซต์สำหรับแนะนำสถานที่และวิธีการเดินทางจากสถาบันพระจอมเกล้าเจ้าคุณทหารลาดกระบังไปยังสถานที่ต่าง ๆ ในบริเวณโดยรอบ โดยผู้ใช้งานสามารถเลือกสถานที่ปลายทางหรือประเภทของสถานที่ที่สนใจ และระบบจะแสดงข้อมูลเกี่ยวกับสถานที่ รวมถึงแนะนำวิธีการเดินทางที่เหมาะสม พร้อมข้อมูลเส้นทาง ค่าใช้จ่าย และรายละเอียดที่เกี่ยวข้อง เพื่อช่วยให้ผู้ใช้งานสามารถวางแผนการเดินทางได้สะดวกและเข้าใจได้ง่ายยิ่งขึ้น
+
+                การพัฒนาเว็บไซต์นี้จึงมีความสำคัญในการรวบรวมข้อมูลสถานที่และการเดินทางในบริเวณโดยรอบสถาบันให้อยู่ในรูปแบบที่เข้าถึงได้ง่าย อีกทั้งยังสามารถช่วยอำนวยความสะดวกให้แก่นักศึกษา บุคลากร และบุคคลทั่วไปในการค้นหาและวางแผนการเดินทาง นอกจากนี้ ระบบยังสามารถนำไปพัฒนาต่อยอดโดยเพิ่มจำนวนสถานที่ เพิ่มรูปแบบการเดินทาง หรือขยายขอบเขตพื้นที่ให้ครอบคลุมพื้นที่ใกล้เคียงอื่น ๆ ได้ในอนาคต
+
+            </p>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         TYPES PAGE
+    ========================== -->
+
+    <section
+        id="typesPage"
+        class="sub-page"
+        style="display: none;"
+    >
+
+        <div class="page-header">
+
+            <h2>
+                🏷️ ประเภทสถานที่
+            </h2>
+
+            <p>
+                เลือกสถานที่ตามประเภทที่สนใจ
+            </p>
+
+        </div>
+
+
+        <div class="filter-cards">
+
+
+            <div
+                class="filter-card"
+                onclick="showPlaces(1)"
+            >
+
+                <div class="icon">
+                    ☕
+                </div>
+
+                <h3>
+                    คาเฟ่
+                </h3>
+
+                <p>
+                    ร้านกาแฟและคาเฟ่
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showPlaces(2)"
+            >
+
+                <div class="icon">
+                    🌿
+                </div>
+
+                <h3>
+                    ธรรมชาติ
+                </h3>
+
+                <p>
+                    สถานที่ท่ามกลางธรรมชาติ
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showPlaces(3)"
+            >
+
+                <div class="icon">
+                    🍜
+                </div>
+
+                <h3>
+                    ร้านอาหาร
+                </h3>
+
+                <p>
+                    ร้านอาหารและของกิน
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showPlaces(4)"
+            >
+
+                <div class="icon">
+                    🛍️
+                </div>
+
+                <h3>
+                    ตลาด
+                </h3>
+
+                <p>
+                    ตลาดและแหล่งของกิน
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showPlaces(5)"
+            >
+
+                <div class="icon">
+                    🏬
+                </div>
+
+                <h3>
+                    ห้าง
+                </h3>
+
+                <p>
+                    ศูนย์การค้าและแหล่งช้อปปิ้ง
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showPlaces(6)"
+            >
+
+                <div class="icon">
+                    🏛️
+                </div>
+
+                <h3>
+                    พิพิธภัณฑ์
+                </h3>
+
+                <p>
+                    สถานที่เรียนรู้และประวัติศาสตร์
+                </p>
+
+            </div>
+
+
+        </div>
+
+
+        <div class="back-button">
+
+            <button onclick="showHome()">
+                ← กลับหน้าหลัก
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         MOODS PAGE
+    ========================== -->
+
+    <section
+        id="moodsPage"
+        class="sub-page"
+        style="display: none;"
+    >
+
+        <div class="page-header">
+
+            <h2>
+                😊 บรรยากาศ
+            </h2>
+
+            <p>
+                เลือกสถานที่ให้เหมาะกับอารมณ์และความรู้สึก
+            </p>
+
+        </div>
+
+
+        <div class="filter-cards">
+
+
+            <div
+                class="filter-card"
+                onclick="showMoodPlaces(1)"
+            >
+
+                <div class="icon">
+                    ☕
+                </div>
+
+                <h3>
+                    ชิลๆ
+                </h3>
+
+                <p>
+                    บรรยากาศสบาย ๆ เหมาะกับการพักผ่อน
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showMoodPlaces(2)"
+            >
+
+                <div class="icon">
+                    😌
+                </div>
+
+                <h3>
+                    พักผ่อนหย่อนใจ
+                </h3>
+
+                <p>
+                    สถานที่สำหรับพักผ่อนและผ่อนคลาย
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showMoodPlaces(3)"
+            >
+
+                <div class="icon">
+                    🌿
+                </div>
+
+                <h3>
+                    ใกล้ธรรมชาติ
+                </h3>
+
+                <p>
+                    บรรยากาศใกล้ชิดธรรมชาติ
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showMoodPlaces(4)"
+            >
+
+                <div class="icon">
+                    🌙
+                </div>
+
+                <h3>
+                    ชิลยามค่ำคืน
+                </h3>
+
+                <p>
+                    เหมาะสำหรับช่วงเย็นและกลางคืน
+                </p>
+
+            </div>
+
+
+            <div
+                class="filter-card"
+                onclick="showMoodPlaces(5)"
+            >
+
+                <div class="icon">
+                    🎉
+                </div>
+
+                <h3>
+                    สนุกสนาน
+                </h3>
+
+                <p>
+                    สถานที่สำหรับความสนุกและกิจกรรม
+                </p>
+
+            </div>
+
+
+        </div>
+
+
+        <div class="back-button">
+
+            <button onclick="showHome()">
+                ← กลับหน้าหลัก
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         RANDOM RESULT
+    ========================== -->
+
+    <div
+        id="randomResult"
+        class="random-result"
+        style="display: none;"
+    >
+
+        <div class="random-box">
+
+            <div class="random-icon">
+                🎲
+            </div>
+
+            <h2>
+                สถานที่ที่สุ่มได้
+            </h2>
+
+            <h3 id="randomName"></h3>
+
+            <p id="randomDescription"></p>
+
+            <p id="randomAddress"></p>
+
+            <button onclick="randomPlace()">
+                🎲 สุ่มอีกครั้ง
+            </button>
+
+            <button onclick="closeRandom()">
+                ปิด
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================
+         DETAIL PAGE
+    ========================== -->
+
+    <section
+        class="content"
+        id="detailPage"
+        style="display: none;"
+    >
+
+        <div id="placeDetail"></div>
+
+        <div class="back-button">
+
+            <button onclick="goBackFromDetail()">
+                ← กลับ
+            </button>
+
+        </div>
+
+    </section>
+
+
+    <!-- =========================
+         FOOTER
+    ========================== -->
+
+    <footer>
+
+        <p>
+            © 2026 KMITL TRAVEL RECOMMEND
+        </p>
+
+    </footer>
+
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>

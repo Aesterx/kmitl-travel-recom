@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เข้าสู่ระบบ - เที่ยวไหนดี สจล.</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+
+<body>
+
+    <div class="login-container">
+
+        <div class="login-box">
+
+            <h1>เข้าสู่ระบบ</h1>
+            <p>เที่ยวไหนดี สจล.</p>
+
+            <form id="loginForm">
+
+                <label>ชื่อผู้ใช้</label>
+                <input
+                    type="text"
+                    id="username"
+                    placeholder="กรอกชื่อผู้ใช้"
+                    required
+                >
+
+                <label>รหัสผ่าน</label>
+
+                <div class="password-input">
+                    <input
+                        type="password"
+                        id="loginPassword"
+                        placeholder="กรอกรหัสผ่าน"
+                        required
+                    >
+
+                    <button
+                        type="button"
+                        class="eye-btn"
+                        onclick="togglePassword('loginPassword', this)"
+                    >
+                        <i class="fa-regular fa-eye"></i>
+                    </button>
+                </div>
+
+                <button
+                    type="submit"
+                    class="submit-btn"
+                >
+                    เข้าสู่ระบบ
+                </button>
+
+                <p id="loginMessage"></p>
+
+            </form>
+
+            <div class="register-link">
+                ยังไม่มีบัญชี?
+                <a href="register.html">สมัครสมาชิก</a>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+
+    <script>
+        document
+            .getElementById("loginForm")
+            .addEventListener("submit", async function(event) {
+
+                event.preventDefault();
+
+                const username =
+                    document.getElementById("username").value;
+
+                const password =
+                    document.getElementById("loginPassword").value;
+
+                const message =
+                    document.getElementById("loginMessage");
+
+                try {
+
+                    const response = await fetch("/login", {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            username: username,
+                            password: password
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    message.textContent = data.message;
+
+                    if (data.success) {
+
+                        // ถ้า Login สำเร็จ
+                        window.location.href = "index.html";
+
+                    }
+
+                } catch (error) {
+
+                    console.error(error);
+
+                    message.textContent =
+                        "ไม่สามารถเชื่อมต่อ Server ได้";
+
+                }
+
+            });
+    </script>
+
+</body>
+</html>
+
