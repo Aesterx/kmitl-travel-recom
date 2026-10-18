@@ -144,11 +144,11 @@ app.post("/forgot-password", (req, res) => {
                 "หากอีเมลนี้มีบัญชีอยู่ ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านให้ กรุณาตรวจสอบอีเมล";
 
             if (users.length === 0) {
-                return res.json({
-                    success: true,
-                    message: genericMessage
-                });
-            }
+    return res.status(404).json({
+        success: false,
+        message: "ไม่พบอีเมลนี้ในระบบ กรุณาตรวจสอบอีเมลอีกครั้ง"
+    });
+}
 
             const userId = users[0].USER_ID;
             const token = crypto.randomBytes(32).toString("hex");
@@ -185,9 +185,9 @@ app.post("/forgot-password", (req, res) => {
                 });
 
                 return res.json({
-                    success: true,
-                    message: genericMessage
-                });
+    success: true,
+    message: "ส่งอีเมลรีเซ็ตรหัสผ่านสำเร็จแล้ว"
+});
             } catch (emailErr) {
                 console.error("RESET EMAIL ERROR:", emailErr);
 
