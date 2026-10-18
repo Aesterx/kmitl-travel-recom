@@ -1,4 +1,6 @@
-console.log("script.js ทำงานแล้ว");
+ currentPlaceconsole.log("script.js ทำงานแล้ว");
+
+let currentPlace = null;
 
 
 // =====================================================
@@ -960,6 +962,7 @@ async function showPlaceDetail(
         const place =
             await response.json();
 
+        currentPlace = place;
 
         // =============================================
         // โหลดคะแนนเฉลี่ย
@@ -1133,72 +1136,13 @@ async function showPlaceDetail(
 
                     </p>
 
-
-                    <!-- ================================= -->
-                    <!-- การเดินทาง -->
-                    <!-- ================================= -->
-
-                    <div
-                        class="transport-button"
-                        onclick="toggleTransport()"
-                    >
-                        การเดินทาง
-                    </div>
-
-
-                    <div
-                        id="transportDetails"
-                        class="transport-details"
-                        style="display: none;"
-                    >
-
-                        <p>
-
-                            <strong>
-                                ประเภท :
-                            </strong>
-
-                            ${
-                                place.TRANSPORT_TYPE ||
-                                "-"
-                            }
-
-                        </p>
-
-
-                        <p>
-
-                            <strong>
-                                รายละเอียด :
-                            </strong>
-
-                            ${
-                                place.TRANSPORT_DESCRIPTION ||
-                                "-"
-                            }
-
-                        </p>
-
-
-                        <p>
-
-                            <strong>
-                                ค่าเดินทาง :
-                            </strong>
-
-                            ${
-                                place.TRANSPORT_COST ??
-                                "-"
-                            }
-                            บาท
-
-                        </p>
-
-                    </div>
-
-                </div>
-
-
+<button
+    type="button"
+    onclick="openGoogleMaps()"
+    class="transport-button"
+>
+    📍 นำทางด้วย Google Maps
+</button>
                 <!-- ================================= -->
                 <!-- TAB รีวิว -->
                 <!-- ================================= -->
@@ -3026,6 +2970,12 @@ window.addEventListener(
             return;
         }
 
+        // TRAVEL PLANNER
+        if (state.page === "travel") {
+            showTravel(true);
+            return;
+        }
+
     }
 );
 
@@ -3137,6 +3087,11 @@ window.addEventListener(
                     state.returnPage || null
                 );
 
+            } else if (
+                state.page === "travel"
+            ) {
+
+                showTravel(true);
 
             } else {
 
@@ -3153,40 +3108,174 @@ window.addEventListener(
 
 
 // =====================================================
-// TOGGLE TRANSPORT
+// GOOGLE MAPS DIRECTIONS
 // =====================================================
 
-function toggleTransport() {
-
-    const details =
-        document.getElementById(
-            "transportDetails"
-        );
-
-
-    if (!details) {
+function openGoogleMaps() {
+    if (!currentPlace) {
         return;
     }
 
+    const destination = encodeURIComponent(
+        currentPlace.PLACE_ADDRESS || currentPlace.PLACE_NAME || ""
+    );
 
-    if (
-        details.style.display === "none" ||
-        details.style.display === ""
-    ) {
-
-        details.style.display =
-            "block";
-
-    } else {
-
-        details.style.display =
-            "none";
-
+    if (!destination) {
+        alert("สถานที่นี้ยังไม่มีข้อมูลที่อยู่");
+        return;
     }
 
+    const url =
+        `https://www.google.com/maps/dir/?api=1` +
+        `&origin=${encodeURIComponent("สจล. ลาดกระบัง")}` +
+        `&destination=${destination}`;
+
+    window.open(url, "_blank", "noopener");
 }
 
 
+// =====================================================
+// TRAVEL PLANNER
+// =====================================================
+
+let travelPlacesCache = [];
+
+async function showTravel(fromHistory = false) {
+    if (!fromHistory) {
+        savePageState("travel");
+    }
+
+    const hero = document.querySelector(".hero");
+    if (hero) hero.style.display = "none";
+
+    document.querySelectorAll(".content").forEach(section => {
+        section.style.display = "none";
+    });
+
+    ["typesPage", "moodsPage"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+    });
+
+    const randomResult = document.getElementById("randomResult");
+    if (randomResult) randomResult.style.display = "none";
+
+    const page = document.getElementById("travelPage");
+    if (page) page.style.display = "block";
+
+    const select = document.getElementById("travelDestination");
+    const info = document.getElementById("travelInfo");
+    if (!select || !info) return;
+
+    if (travelPlacesCache.length) {
+        fillTravelDestinations(select, travelPlacesCache);
+        updateTravelDetails();
+        return;
+    }
+
+    select.innerHTML = '<option value="">กำลังโหลดสถานที่...</option>';
+    info.innerHTML = "<p>กำลังโหลดข้อมูลสถานที่...</p>";
+
+    try {
+        const response = await fetch("/places");
+        if (!response.ok) throw new Error("โหลดสถานที่ไม่สำเร็จ");
+        const places = await response.json();
+        if (!Array.isArray(places)) throw new Error("รูปแบบข้อมูลสถานที่ไม่ถูกต้อง");
+
+        // Remove duplicate place IDs in case a place has multiple image records.
+        const unique = new Map();
+        places.forEach(place => {
+            const key = String(place.PLACE_ID);
+            if (!unique.has(key)) unique.set(key, place);
+        });
+        travelPlacesCache = Array.from(unique.values());
+
+        fillTravelDestinations(select, travelPlacesCache);
+        updateTravelDetails();
+    } catch (error) {
+        console.error("โหลดระบบการเดินทางไม่สำเร็จ:", error);
+        select.innerHTML = '<option value="">ไม่สามารถโหลดสถานที่ได้</option>';
+        info.innerHTML = "<p>โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง</p>";
+    }
+}
+
+function fillTravelDestinations(select, places) {
+    const previous = select.value;
+    select.innerHTML = '<option value="">-- เลือกสถานที่ปลายทาง --</option>';
+
+    places.forEach(place => {
+        const option = document.createElement("option");
+        option.value = String(place.PLACE_ID);
+        option.textContent = place.PLACE_NAME || `สถานที่ ${place.PLACE_ID}`;
+        select.appendChild(option);
+    });
+
+    if (previous && places.some(place => String(place.PLACE_ID) === previous)) {
+        select.value = previous;
+    } else if (places.length === 1) {
+        select.value = String(places[0].PLACE_ID);
+    }
+}
+
+function updateTravelDetails() {
+    const select = document.getElementById("travelDestination");
+    const info = document.getElementById("travelInfo");
+    if (!select || !info) return;
+
+    const place = travelPlacesCache.find(item => String(item.PLACE_ID) === select.value);
+    if (!place) {
+        info.innerHTML = "<p>เลือกสถานที่ปลายทางเพื่อดูวิธีเดินทางและค่าใช้จ่าย</p>";
+        updateTravelMapLink();
+        return;
+    }
+
+    const safe = value => String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    })[char]);
+
+    info.innerHTML = `
+        <h3>📍 ${safe(place.PLACE_NAME || "สถานที่")}</h3>
+        <p><strong>ที่อยู่:</strong> ${safe(place.PLACE_ADDRESS || "ยังไม่มีข้อมูลที่อยู่")}</p>
+        <p><strong>ค่าเข้าสถานที่:</strong> ${place.COST_ENTRANCE_FEE == null ? "ไม่มีข้อมูล" : `${safe(place.COST_ENTRANCE_FEE)} บาท`}</p>
+        <p><strong>ค่าใช้จ่ายเฉลี่ย:</strong> ${place.COST_AVERAGE == null ? "ไม่มีข้อมูล" : `${safe(place.COST_AVERAGE)} บาท`}</p>
+        <p>กดปุ่มแผนที่เพื่อดูเส้นทางไปยังสถานที่นี้</p>
+    `;
+    updateTravelMapLink();
+}
+
+function updateTravelMapLink() {
+    const link = document.getElementById("travelMapLink");
+    const originEl = document.getElementById("travelOrigin");
+    const destinationEl = document.getElementById("travelDestination");
+    const modeEl = document.getElementById("travelMode");
+    if (!link || !originEl || !destinationEl || !modeEl) return;
+
+    const place = travelPlacesCache.find(item => String(item.PLACE_ID) === destinationEl.value);
+    const origin = originEl.value.trim() || "สจล. ลาดกระบัง";
+    const destination = place ? (place.PLACE_ADDRESS || place.PLACE_NAME || "") : "";
+
+    if (!origin || !destination) {
+        link.href = "https://www.google.com/maps";
+        link.setAttribute("aria-disabled", "true");
+        link.style.opacity = ".6";
+        return;
+    }
+
+    const params = new URLSearchParams({
+        api: "1",
+        origin,
+        destination,
+        travelmode: modeEl.value
+    });
+    link.href = `https://www.google.com/maps/dir/?${params.toString()}`;
+    link.removeAttribute("aria-disabled");
+    link.style.opacity = "1";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    const origin = document.getElementById("travelOrigin");
+    if (origin) origin.addEventListener("input", updateTravelMapLink);
+});
 // =====================================================
 // CHECK LOGIN WHEN PAGE LOADS
 // =====================================================

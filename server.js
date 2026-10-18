@@ -939,20 +939,12 @@ app.get("/places", (req, res) => {
 
             C.COST_ENTRANCE_FEE,
             C.COST_AVERAGE,
-
-            T.TRANSPORT_TYPE,
-            T.TRANSPORT_DESCRIPTION,
-            T.TRANSPORT_COST,
-
             I.IMAGE_URL
 
         FROM place P
 
         LEFT JOIN cost C
             ON P.COST_ID = C.COST_ID
-
-        LEFT JOIN transport T
-            ON P.TRANSPORT_ID = T.TRANSPORT_ID
 
         LEFT JOIN \`image\` I
             ON P.PLACE_ID = I.PLACE_ID
@@ -1005,20 +997,12 @@ app.get(
 
                 C.COST_ENTRANCE_FEE,
                 C.COST_AVERAGE,
-
-                T.TRANSPORT_TYPE,
-                T.TRANSPORT_DESCRIPTION,
-                T.TRANSPORT_COST,
-
                 I.IMAGE_URL
 
             FROM place P
 
             LEFT JOIN cost C
                 ON P.COST_ID = C.COST_ID
-
-            LEFT JOIN transport T
-                ON P.TRANSPORT_ID = T.TRANSPORT_ID
 
             LEFT JOIN \`image\` I
                 ON P.PLACE_ID = I.PLACE_ID
