@@ -198,12 +198,15 @@
                         data.message;
 
 
-                    if (data.success) {
+                  
 
-    message.textContent =
-        "สมัครสมาชิกสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน";
-
+if (response.ok && data.success) {
+    window.location.replace("/login.html");
+} else {
+    message.textContent = data.message || "สมัครสมาชิกไม่สำเร็จ";
 }
+
+
 
                 } catch (error) {
 

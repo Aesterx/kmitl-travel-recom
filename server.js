@@ -316,11 +316,11 @@ app.post("/register", async (req, res) => {
                         data.messageId
                     );
 
-                    return res.json({
-                        success: true,
-                        message:
-                            "สมัครสมาชิกสำเร็จ กรุณาตรวจสอบอีเมลเพื่อยืนยัน"
-                    });
+                   return res.json({
+    success: true,
+    redirect: "/login.html",
+    message: "ส่งอีเมลยืนยันสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ"
+});
 
                 } catch (emailError) {
 
