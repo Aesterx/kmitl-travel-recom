@@ -3262,7 +3262,6 @@ document.addEventListener("DOMContentLoaded", () => {
 // =====================================================
 // CHECK LOGIN WHEN PAGE LOADS
 // =====================================================
-
-document.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("load", () => {
     checkLogin();
 });
