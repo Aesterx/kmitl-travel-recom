@@ -112,6 +112,234 @@ async function sendEmail({ to, subject, html }) {
     return { messageId: text };
 }
 
+/* =========================
+   FORGOT PASSWORD
+========================= */
+
+app.post("/forgot-password", async (req, res) => {
+    const email = String(req.body.email || "").trim();
+
+    if (!email) {
+        return res.status(400).json({
+            success: false,
+            message: "กรุณากรอกอีเมล"
+        });
+    }
+
+    try {
+        db.query(
+            `SELECT USER_ID FROM \`user\` WHERE USER_EMAIL = ?`,
+            [email],
+            async (err, users) => {
+                if (err) {
+                    console.error("FORGOT PASSWORD ERROR:", err);
+                    return res.status(500).json({
+                        success: false,
+                        message: "เกิดข้อผิดพลาด กรุณาลองใหม่"
+                    });
+                }
+
+                // ไม่เปิดเผยว่าอีเมลนี้มีบัญชีหรือไม่
+                const genericMessage =
+                    "หากอีเมลนี้มีบัญชีอยู่ ระบบจะส่งลิงก์รีเซ็ตรหัสผ่านให้ กรุณาตรวจสอบกล่องจดหมาย";
+
+                if (users.length === 0) {
+                    return res.json({
+                        success: true,
+                        message: genericMessage
+                    });
+                }
+
+                const userId = users[0].USER_ID;
+                const token = crypto.randomBytes(32).toString("hex");
+                const tokenHash = crypto
+                    .createHash("sha256")
+                    .update(token)
+                    .digest("hex");
+
+                const resetLink =
+                    `${req.protocol}://${req.get("host")}/reset-password.html?token=${token}`;
+
+                // ลบโทเคนเดิมของบัญชีนี้ก่อนสร้างอันใหม่
+                db.query(
+                    `DELETE FROM password_reset_tokens WHERE USER_ID = ?`,
+                    [userId],
+                    (deleteErr) => {
+                        if (deleteErr) {
+                            console.error(deleteErr);
+                            return res.status(500).json({
+                                success: false,
+                                message: "ไม่สามารถสร้างลิงก์รีเซ็ตได้"
+                            });
+                        }
+
+                        db.query(
+                            `INSERT INTO password_reset_tokens
+                             (USER_ID, RESET_TOKEN_HASH, RESET_EXPIRES_AT, RESET_USED)
+                             VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE), 0)`,
+                            [userId, tokenHash],
+                            async (insertErr) => {
+                                if (insertErr) {
+                                    console.error(insertErr);
+                                    return res.status(500).json({
+                                        success: false,
+                                        message: "ไม่สามารถสร้างลิงก์รีเซ็ตได้"
+                                    });
+                                }
+
+                                try {
+                                    await sendEmail({
+                                        to: email,
+                                        subject: "รีเซ็ตรหัสผ่าน - เที่ยวไหนดี สจล.",
+                                        html: `
+                                            <div style="font-family:Arial,sans-serif;padding:20px">
+                                                <h2>รีเซ็ตรหัสผ่าน</h2>
+                                                <p>มีคำขอเปลี่ยนรหัสผ่านบัญชีของคุณ</p>
+                                                <p>กดปุ่มด้านล่างเพื่อตั้งรหัสผ่านใหม่
+                                                ลิงก์นี้ใช้ได้ภายใน 30 นาที</p>
+                                                <a href="${resetLink}"
+                                                   style="display:inline-block;padding:12px 20px;background:#333;color:white;text-decoration:none;border-radius:8px">
+                                                    ตั้งรหัสผ่านใหม่
+                                                </a>
+                                                <p>หากคุณไม่ได้ร้องขอ สามารถละเว้นอีเมลนี้ได้</p>
+                                            </div>
+                                        `
+                                    });
+
+                                    return res.json({
+                                        success: true,
+                                        message: genericMessage
+                                    });
+                                } catch (emailErr) {
+                                    console.error("RESET EMAIL ERROR:", emailErr);
+
+                                    db.query(
+                                        `DELETE FROM password_reset_tokens WHERE USER_ID = ?`,
+                                        [userId]
+                                    );
+
+                                    return res.status(500).json({
+                                        success: false,
+                                        message: "ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่"
+                                    });
+                                }
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    } catch (error) {
+        console.error("FORGOT PASSWORD ERROR:", error);
+        return res.status(500).json({
+            success: false,
+            message: "เกิดข้อผิดพลาด กรุณาลองใหม่"
+        });
+    }
+});
+
+/* =========================
+   RESET PASSWORD
+========================= */
+
+app.post("/reset-password", async (req, res) => {
+    const token = String(req.body.token || "").trim();
+    const password = String(req.body.password || "");
+
+    if (!token || !password) {
+        return res.status(400).json({
+            success: false,
+            message: "กรุณากรอกข้อมูลให้ครบ"
+        });
+    }
+
+    if (password.length < 8) {
+        return res.status(400).json({
+            success: false,
+            message: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"
+        });
+    }
+
+    const tokenHash = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+    let connection;
+
+    try {
+        connection = await db.promise().getConnection();
+        await connection.beginTransaction();
+
+        const [tokens] = await connection.execute(
+            `SELECT RESET_ID, USER_ID
+             FROM password_reset_tokens
+             WHERE RESET_TOKEN_HASH = ?
+               AND RESET_USED = 0
+               AND RESET_EXPIRES_AT > NOW()
+             FOR UPDATE`,
+            [tokenHash]
+        );
+
+        if (tokens.length === 0) {
+            await connection.rollback();
+
+            return res.status(400).json({
+                success: false,
+                message: "ลิงก์ไม่ถูกต้อง หมดอายุ หรือถูกใช้ไปแล้ว"
+            });
+        }
+
+        const reset = tokens[0];
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await connection.execute(
+            `UPDATE \`user\`
+             SET USER_PASSWORD = ?
+             WHERE USER_ID = ?`,
+            [hashedPassword, reset.USER_ID]
+        );
+
+        await connection.execute(
+            `UPDATE password_reset_tokens
+             SET RESET_USED = 1
+             WHERE RESET_ID = ?`,
+            [reset.RESET_ID]
+        );
+
+        // ยกเลิกลิงก์รีเซ็ตอื่น ๆ ของบัญชีเดียวกัน
+        await connection.execute(
+            `DELETE FROM password_reset_tokens
+             WHERE USER_ID = ? AND RESET_ID <> ?`,
+            [reset.USER_ID, reset.RESET_ID]
+        );
+
+        await connection.commit();
+
+        return res.json({
+            success: true,
+            message: "เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"
+        });
+
+    } catch (error) {
+        if (connection) {
+            await connection.rollback().catch(() => {});
+        }
+
+        console.error("RESET PASSWORD ERROR:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่"
+        });
+    } finally {
+        if (connection) {
+            connection.release();
+        }
+    }
+});
+
 // =========================
 // REGISTER
 // =========================
