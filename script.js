@@ -2765,72 +2765,55 @@ async function logout() {
     }
 
 }
-
-
 // =====================================================
 // CHECK LOGIN
 // =====================================================
 
 async function checkLogin() {
-
     try {
+        const response = await fetch("/me", {
+            method: "GET",
+            credentials: "same-origin",
+            cache: "no-store"
+        });
 
-        const response =
-            await fetch(
-                "/me"
-            );
+        if (!response.ok) {
+            throw new Error("ตรวจสอบสถานะ Login ไม่สำเร็จ");
+        }
 
-
-        const data =
-            await response.json();
-
-
-        const userMenu =
-            document.getElementById(
-                "userMenu"
-            );
-
+        const data = await response.json();
+        const userMenu = document.getElementById("userMenu");
 
         if (!userMenu) {
+            console.error("ไม่พบ element id='userMenu' ใน HTML");
             return;
         }
 
-
-        if (data.loggedIn) {
-
+        if (data.loggedIn && data.user) {
             userMenu.innerHTML = `
-
                 <span class="username">
-
-                    👤
-                    ${data.user.fname}
-
+                    👤 ${data.user.fname || data.user.username}
                 </span>
-
-
                 <button
+                    type="button"
                     class="logout-btn"
                     onclick="logout()"
                 >
                     ออกจากระบบ
                 </button>
-
             `;
-
+        } else {
+            userMenu.innerHTML = `
+                <a href="/login.html" class="login-btn">
+                    เข้าสู่ระบบ
+                </a>
+            `;
         }
 
     } catch (error) {
-
-        console.error(
-            "ตรวจสอบ Login ไม่สำเร็จ:",
-            error
-        );
-
+        console.error("ตรวจสอบ Login ไม่สำเร็จ:", error);
     }
-
 }
-
-
 // =====================================================
 // BROWSER BACK / FORWARD
 // =====================================================
