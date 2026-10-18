@@ -204,280 +204,75 @@ app.post("/forgot-password", (req, res) => {
    RESET PASSWORD
 ========================= */
 
+app.post("/reset-password", async (req, res) => {
+    const token = String(req.body.token || "").trim();
+    const password = String(req.body.password || "");
 
-db.query(
-    "UPDATE `user` SET USER_PASSWORD = ? WHERE USER_ID = ?",
-    [hashedPassword, reset.userId],
-    (err, result) => {
-        if (err) {
-            console.error("RESET PASSWORD ERROR:", err);
-            return res.status(500).json({
-                success: false,
-                message: "เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่"
-            });
-        }
-
-        if (result.affectedRows === 0) {
-            passwordResetTokens.delete(tokenHash);
-            return res.status(400).json({
-                success: false,
-                message: "ไม่พบบัญชีผู้ใช้ กรุณาขอลิงก์ใหม่"
-            });
-        }
-
-        // ใช้ลิงก์ได้เพียงครั้งเดียว
-        passwordResetTokens.delete(tokenHash);
-
-        res.json({
-            success: true,
-            message: "เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"
-        });
-    }
-);
-
-// =========================
-// REGISTER
-// =========================
-
-app.post("/register", async (req, res) => {
-
-    const {
-        username,
-        email,
-        password,
-        fname,
-        lname
-    } = req.body;
-
-    if (!username || !email || !password || !fname || !lname) {
+    if (!token || !password) {
         return res.status(400).json({
             success: false,
             message: "กรุณากรอกข้อมูลให้ครบ"
         });
     }
 
+    if (password.length < 8) {
+        return res.status(400).json({
+            success: false,
+            message: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"
+        });
+    }
+
+    const tokenHash = crypto
+        .createHash("sha256")
+        .update(token)
+        .digest("hex");
+
+    const reset = passwordResetTokens.get(tokenHash);
+
+    if (!reset || reset.used || reset.expiresAt <= Date.now()) {
+        passwordResetTokens.delete(tokenHash);
+        return res.status(400).json({
+            success: false,
+            message: "ลิงก์ไม่ถูกต้องหรือหมดอายุ กรุณาขอลิงก์ใหม่"
+        });
+    }
+
     try {
-
-        // =========================
-        // CHECK USER IN DATABASE
-        // =========================
-
-        const checkSql = `
-            SELECT USER_ID
-            FROM \`user\`
-            WHERE USER_USERNAME = ?
-               OR USER_EMAIL = ?
-        `;
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         db.query(
-            checkSql,
-            [username, email],
-            async (err, results) => {
-
+            "UPDATE `user` SET USER_PASSWORD = ? WHERE USER_ID = ?",
+            [hashedPassword, reset.userId],
+            (err, result) => {
                 if (err) {
-                    console.log(
-                        "CHECK USER ERROR:",
-                        err
-                    );
-
+                    console.error("RESET PASSWORD ERROR:", err);
                     return res.status(500).json({
                         success: false,
-                        message: "ตรวจสอบข้อมูลไม่สำเร็จ"
+                        message: "เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณาลองใหม่"
                     });
                 }
 
-                if (results.length > 0) {
+                if (result.affectedRows === 0) {
+                    passwordResetTokens.delete(tokenHash);
                     return res.status(400).json({
                         success: false,
-                        message:
-                            "Username หรือ Email นี้มีอยู่แล้ว"
+                        message: "ไม่พบบัญชีผู้ใช้ กรุณาขอลิงก์ใหม่"
                     });
                 }
 
-                // =========================
-                // CHECK PENDING USERS
-                // =========================
+                passwordResetTokens.delete(tokenHash);
 
-                for (const [
-                    token,
-                    pendingUser
-                ] of pendingUsers.entries()) {
-
-                    if (
-                        pendingUser.username === username ||
-                        pendingUser.email === email
-                    ) {
-
-                        return res.status(400).json({
-                            success: false,
-                            message:
-                                "Username หรือ Email นี้กำลังรอยืนยันอีเมล"
-                        });
-                    }
-                }
-
-                // =========================
-                // HASH PASSWORD
-                // =========================
-
-                const hashedPassword =
-                    await bcrypt.hash(
-                        password,
-                        10
-                    );
-
-                // =========================
-                // CREATE VERIFY TOKEN
-                // =========================
-
-                const verifyToken =
-                    crypto
-                        .randomBytes(32)
-                        .toString("hex");
-
-                // =========================
-                // SAVE PENDING USER
-                // ยังไม่ INSERT DATABASE
-                // =========================
-
-                pendingUsers.set(
-                    verifyToken,
-                    {
-                        username,
-                        email,
-                        password: hashedPassword,
-                        fname,
-                        lname
-                    }
-                );
-
-                console.log(
-                    "🕐 สมัครสมาชิก รอยืนยันอีเมล:",
-                    email
-                );
-
-                // =========================
-                // VERIFY LINK
-                // =========================
-
-                const verifyLink =
-                    `${req.protocol}://${req.get("host")}/verify?token=${verifyToken}`;
-
-                // =========================
-                // SEND EMAIL - EMAILJS
-                // =========================
-
-                console.log(
-                    "📧 กำลังส่ง Email ไปที่:",
-                    email
-                );
-
-                try {
-
-                    const data =
-                        await sendEmail({
-
-                            to: email,
-
-                            subject:
-                                "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
-
-                            html: `
-                                <div
-                                    style="
-                                        font-family: Arial, sans-serif;
-                                        max-width: 600px;
-                                        margin: auto;
-                                        padding: 20px;
-                                    "
-                                >
-
-                                    <h2>
-                                        ยืนยันอีเมล
-                                    </h2>
-
-                                    <p>
-                                        ขอบคุณสำหรับการสมัครสมาชิก
-                                        เว็บไซต์เที่ยวไหนดี สจล.
-                                    </p>
-
-                                    <p>
-                                        กรุณากดปุ่มด้านล่าง
-                                        เพื่อยืนยันอีเมลของคุณ
-                                    </p>
-
-                                    <a
-                                        href="${verifyLink}"
-                                        style="
-                                            display: inline-block;
-                                            padding: 12px 20px;
-                                            background: #333;
-                                            color: white;
-                                            text-decoration: none;
-                                            border-radius: 8px;
-                                        "
-                                    >
-                                        ยืนยันอีเมล
-                                    </a>
-
-                                    <p style="margin-top:20px;">
-                                        หากคุณไม่ได้สมัครสมาชิก
-                                        สามารถละเว้นอีเมลนี้ได้
-                                    </p>
-
-                                </div>
-                            `
-                        });
-
-                    console.log(
-                        "✅ ส่ง Email สำเร็จ:",
-                        email
-                    );
-
-                    console.log(
-                        "Message ID:",
-                        data.messageId
-                    );
-
-                   return res.json({
-    success: true,
-    redirect: "/login.html",
-    message: "ส่งอีเมลยืนยันสำเร็จ กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ"
-});
-
-                } catch (emailError) {
-
-                    console.log(
-                        "❌ ส่ง Email ไม่สำเร็จ"
-                    );
-
-                    console.log(emailError);
-
-                    // ลบ pending user
-                    pendingUsers.delete(
-                        verifyToken
-                    );
-
-                    return res.status(500).json({
-                        success: false,
-                        message:
-                            "ส่งอีเมลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
-                    });
-                }
+                return res.json({
+                    success: true,
+                    message: "เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"
+                });
             }
         );
-
     } catch (error) {
-
-        console.log(
-            "REGISTER ERROR:",
-            error
-        );
-
+        console.error("RESET PASSWORD ERROR:", error);
         return res.status(500).json({
             success: false,
-            message:
-                "เกิดข้อผิดพลาดในการสมัครสมาชิก"
+            message: "เกิดข้อผิดพลาด กรุณาลองใหม่"
         });
     }
 });
