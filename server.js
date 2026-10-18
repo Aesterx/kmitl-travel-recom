@@ -263,9 +263,10 @@ app.post("/reset-password", async (req, res) => {
                 passwordResetTokens.delete(tokenHash);
 
                 return res.json({
-                    success: true,
-                    message: "เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"
-                });
+    success: true,
+    redirect: "/login.html",
+    message: "เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบด้วยรหัสผ่านใหม่"
+});
             }
         );
     } catch (error) {
