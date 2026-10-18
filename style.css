@@ -1418,8 +1418,9 @@ footer {
     display: block;
     width: 100%;
     max-width: 800px;
-    height: 400px;
+    height: auto;
+    max-height: 500px;
     margin: 0 auto 25px;
-    object-fit: cover;
+    object-fit: contain;
     border-radius: 12px;
 }
