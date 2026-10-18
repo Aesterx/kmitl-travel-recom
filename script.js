@@ -1,4 +1,4 @@
-currentPlaceconsole.log("script.js ทำงานแล้ว");
+console.log("script.js ทำงานแล้ว");
 
 let currentPlace = null;
 
