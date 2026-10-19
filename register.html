@@ -1,20 +1,22 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>สมัครสมาชิก - เที่ยวไหนดี สจล.</title>
 
     <link rel="stylesheet" href="style.css">
 
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    >
 </head>
 
 <body>
-
     <div class="login-container">
-
         <div class="login-box">
 
             <h1>สมัครสมาชิก</h1>
@@ -22,46 +24,51 @@
 
             <form id="registerForm">
 
-                <label>ชื่อผู้ใช้</label>
+                <label for="username">ชื่อผู้ใช้</label>
                 <input
                     type="text"
                     id="username"
                     placeholder="กรอกชื่อผู้ใช้"
+                    autocomplete="username"
                     required
                 >
 
-                <label>อีเมล</label>
+                <label for="email">อีเมล</label>
                 <input
                     type="email"
                     id="email"
                     placeholder="กรอกอีเมล"
+                    autocomplete="email"
                     required
                 >
 
-                <label>ชื่อจริง</label>
+                <label for="fname">ชื่อจริง</label>
                 <input
                     type="text"
                     id="fname"
                     placeholder="กรอกชื่อจริง"
+                    autocomplete="given-name"
                     required
                 >
 
-                <label>นามสกุล</label>
+                <label for="lname">นามสกุล</label>
                 <input
                     type="text"
                     id="lname"
                     placeholder="กรอกนามสกุล"
+                    autocomplete="family-name"
                     required
                 >
 
-                <label>รหัสผ่าน</label>
+                <label for="registerPassword">รหัสผ่าน</label>
 
                 <div class="password-input">
-
                     <input
                         type="password"
                         id="registerPassword"
                         placeholder="กรอกรหัสผ่าน"
+                        autocomplete="new-password"
+                        minlength="8"
                         required
                     >
 
@@ -69,20 +76,21 @@
                         type="button"
                         class="eye-btn"
                         onclick="togglePassword('registerPassword', this)"
+                        aria-label="แสดงหรือซ่อนรหัสผ่าน"
                     >
                         <i class="fa-regular fa-eye"></i>
                     </button>
-
                 </div>
 
-                <label>ยืนยันรหัสผ่าน</label>
+                <label for="confirmPassword">ยืนยันรหัสผ่าน</label>
 
                 <div class="password-input">
-
                     <input
                         type="password"
                         id="confirmPassword"
                         placeholder="กรอกรหัสผ่านอีกครั้ง"
+                        autocomplete="new-password"
+                        minlength="8"
                         required
                     >
 
@@ -90,136 +98,137 @@
                         type="button"
                         class="eye-btn"
                         onclick="togglePassword('confirmPassword', this)"
+                        aria-label="แสดงหรือซ่อนรหัสผ่าน"
                     >
                         <i class="fa-regular fa-eye"></i>
                     </button>
-
                 </div>
 
                 <button
                     type="submit"
                     class="submit-btn"
+                    id="registerButton"
                 >
                     สมัครสมาชิก
                 </button>
 
-                <p id="registerMessage"></p>
+                <p
+                    id="registerMessage"
+                    role="status"
+                    aria-live="polite"
+                ></p>
 
             </form>
 
             <div class="register-link">
-
                 มีบัญชีอยู่แล้ว?
-
-                <a href="login.html">
-                    เข้าสู่ระบบ
-                </a>
-
+                <a href="login.html">เข้าสู่ระบบ</a>
             </div>
 
         </div>
-
     </div>
 
     <script src="script.js"></script>
 
     <script>
+        const registerForm = document.getElementById("registerForm");
+        const registerMessage = document.getElementById("registerMessage");
+        const registerButton = document.getElementById("registerButton");
 
-        document
-            .getElementById("registerForm")
-            .addEventListener("submit", async function(event) {
+        registerForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
 
-                event.preventDefault();
+            const username =
+                document.getElementById("username").value.trim();
 
-                const username =
-                    document.getElementById("username").value;
+            const email =
+                document.getElementById("email").value.trim();
 
-                const email =
-                    document.getElementById("email").value;
+            const fname =
+                document.getElementById("fname").value.trim();
 
-                const fname =
-                    document.getElementById("fname").value;
+            const lname =
+                document.getElementById("lname").value.trim();
 
-                const lname =
-                    document.getElementById("lname").value;
+            const password =
+                document.getElementById("registerPassword").value;
 
-                const password =
-                    document.getElementById("registerPassword").value;
+            const confirmPassword =
+                document.getElementById("confirmPassword").value;
 
-                const confirmPassword =
-                    document.getElementById("confirmPassword").value;
+            registerMessage.textContent = "";
 
-                const message =
-                    document.getElementById("registerMessage");
+            if (password.length < 8) {
+                registerMessage.textContent =
+                    "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร";
+                return;
+            }
 
+            if (password !== confirmPassword) {
+                registerMessage.textContent =
+                    "รหัสผ่านไม่ตรงกัน";
+                return;
+            }
 
-                // ตรวจ Password
-                if (password !== confirmPassword) {
+            registerButton.disabled = true;
+            registerButton.textContent = "กำลังสมัครสมาชิก...";
 
-                    message.textContent =
-                        "รหัสผ่านไม่ตรงกัน";
+            try {
+                const response = await fetch("/register", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        username,
+                        email,
+                        fname,
+                        lname,
+                        password
+                    })
+                });
 
+                // ตรวจสอบว่าคำตอบจาก Server เป็น JSON จริงหรือไม่
+                const contentType =
+                    response.headers.get("content-type") || "";
+
+                if (!contentType.includes("application/json")) {
+                    throw new Error(
+                        "Server ตอบกลับไม่ถูกต้อง กรุณาตรวจสอบ Route /register"
+                    );
+                }
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    registerMessage.textContent =
+                        "ส่งอีเมลยืนยันแล้ว กำลังไปหน้าเข้าสู่ระบบ...";
+
+                    // ไปหน้า Login เมื่อ Server แจ้งว่าสำเร็จเท่านั้น
+                    window.location.href = "/login.html";
                     return;
                 }
 
+                registerMessage.textContent =
+                    data.message || "สมัครสมาชิกไม่สำเร็จ กรุณาลองใหม่";
 
-                try {
+            } catch (error) {
+                console.error("REGISTER ERROR:", error);
 
-                    const response = await fetch("/register", {
-
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-
-                        body: JSON.stringify({
-
-                            username: username,
-
-                            email: email,
-
-                            fname: fname,
-
-                            lname: lname,
-
-                            password: password
-
-                        })
-
-                    });
-
-
-                    const data =
-                        await response.json();
-
-
-                    message.textContent =
-                        data.message;
-
-
-                  
-
-if (response.ok && data.success) {
-    window.location.replace("/login.html");
-} else {
-    message.textContent = data.message || "สมัครสมาชิกไม่สำเร็จ";
-}
-
-
-
-                } catch (error) {
-
-                    console.error(error);
-
-                    message.textContent =
-                        "ไม่สามารถเชื่อมต่อ Server ได้";
-
+                registerMessage.textContent =
+                    error.message === "Failed to fetch"
+                        ? "ไม่สามารถเชื่อมต่อ Server ได้ กรุณาลองใหม่"
+                        : error.message ||
+                          "เกิดข้อผิดพลาด กรุณาลองใหม่";
+            } finally {
+                // ถ้ายังอยู่หน้าเดิม ให้กดสมัครใหม่ได้
+                if (window.location.pathname.endsWith("/register.html") ||
+                    window.location.pathname.endsWith("/register")) {
+                    registerButton.disabled = false;
+                    registerButton.textContent = "สมัครสมาชิก";
                 }
-
-            });
-
+            }
+        });
     </script>
-
 </body>
 </html>

@@ -114,6 +114,133 @@ async function sendEmail({ to, subject, html }) {
 }
 
 /* =========================
+   REGISTER
+   สมัครสมาชิกและส่งอีเมลยืนยัน
+   ยังไม่ INSERT ลงตาราง user
+========================= */
+
+app.post("/register", async (req, res) => {
+    try {
+        const username = String(req.body.username || "").trim();
+        const email = String(req.body.email || "").trim().toLowerCase();
+        const password = String(req.body.password || "");
+        const fname = String(req.body.fname || "").trim();
+        const lname = String(req.body.lname || "").trim();
+
+        if (!username || !email || !password || !fname || !lname) {
+            return res.status(400).json({
+                success: false,
+                message: "กรุณากรอกข้อมูลให้ครบทุกช่อง"
+            });
+        }
+
+        if (password.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร"
+            });
+        }
+
+        // ตรวจว่าชื่อผู้ใช้หรืออีเมลมีอยู่ในระบบแล้วหรือไม่
+        db.query(
+            `SELECT USER_USERNAME, USER_EMAIL
+             FROM \`user\`
+             WHERE USER_USERNAME = ? OR USER_EMAIL = ?`,
+            [username, email],
+            async (err, users) => {
+                if (err) {
+                    console.error("REGISTER CHECK ERROR:", err);
+                    return res.status(500).json({
+                        success: false,
+                        message: "ตรวจสอบข้อมูลไม่สำเร็จ กรุณาลองใหม่"
+                    });
+                }
+
+                if (users.length > 0) {
+                    return res.status(409).json({
+                        success: false,
+                        message: "Username หรือ Email นี้มีอยู่ในระบบแล้ว"
+                    });
+                }
+
+                // ตรวจข้อมูลที่กำลังรอยืนยันในหน่วยความจำ
+                for (const [oldToken, pending] of pendingUsers.entries()) {
+                    if (
+                        pending.username.toLowerCase() === username.toLowerCase() ||
+                        pending.email.toLowerCase() === email
+                    ) {
+                        if (pending.expiresAt > Date.now()) {
+                            return res.status(409).json({
+                                success: false,
+                                message: "Username หรือ Email นี้กำลังรอยืนยันอีเมล"
+                            });
+                        }
+
+                        pendingUsers.delete(oldToken);
+                    }
+                }
+
+                try {
+                    const hashedPassword = await bcrypt.hash(password, 10);
+                    const token = crypto.randomBytes(32).toString("hex");
+
+                    const verifyLink =
+                        `${req.protocol}://${req.get("host")}/verify?token=${token}`;
+
+                    const html = `
+                        <div style="font-family:Arial,sans-serif;padding:20px">
+                            <h2>ยืนยันอีเมล - เที่ยวไหนดี สจล.</h2>
+                            <p>สวัสดี ${fname}</p>
+                            <p>กรุณากดปุ่มด้านล่างเพื่อยืนยันอีเมลและสมัครสมาชิก</p>
+                            <a href="${verifyLink}"
+                               style="display:inline-block;padding:12px 20px;background:#333;color:white;text-decoration:none;border-radius:8px">
+                                ยืนยันอีเมล
+                            </a>
+                            <p>หากคุณไม่ได้สมัครสมาชิก สามารถละเว้นอีเมลนี้ได้</p>
+                        </div>
+                    `;
+
+                    // ส่งอีเมลก่อน จึงเก็บข้อมูลรอยืนยัน
+                    await sendEmail({
+                        to: email,
+                        subject: "ยืนยันอีเมล - เที่ยวไหนดี สจล.",
+                        html
+                    });
+
+                    pendingUsers.set(token, {
+                        username,
+                        email,
+                        password: hashedPassword,
+                        fname,
+                        lname,
+                        expiresAt: Date.now() + 30 * 60 * 1000
+                    });
+
+                    return res.json({
+                        success: true,
+                        message: "ส่งอีเมลยืนยันแล้ว กรุณาตรวจสอบกล่องจดหมาย"
+                    });
+                } catch (emailErr) {
+                    console.error("REGISTER EMAIL ERROR:", emailErr);
+
+                    return res.status(500).json({
+                        success: false,
+                        message: "ส่งอีเมลยืนยันไม่สำเร็จ กรุณาตรวจสอบการตั้งค่าอีเมล"
+                    });
+                }
+            }
+        );
+    } catch (error) {
+        console.error("REGISTER ERROR:", error);
+
+        return res.status(500).json({
+            success: false,
+            message: "เกิดข้อผิดพลาดในการสมัครสมาชิก"
+        });
+    }
+});
+
+/* =========================
    FORGOT PASSWORD
 ========================= */
 
@@ -295,12 +422,12 @@ app.get("/verify", (req, res) => {
     // GET PENDING USER
     // =========================
 
-    const pendingUser =
-        pendingUsers.get(token);
+   const pendingUser = pendingUsers.get(token);
 
-    if (!pendingUser) {
-        return res.redirect("/verify.html?status=invalid");
-    }
+if (!pendingUser || pendingUser.expiresAt <= Date.now()) {
+    pendingUsers.delete(token);
+    return res.redirect("/verify.html?status=invalid");
+}
 
     // =========================
     // INSERT USER
