@@ -196,13 +196,13 @@
                     return;
                 }
 
-                // ส่งคำขอสำเร็จ: แสดงข้อความและอยู่หน้าเดิม
                 showRegisterMessage(
-                    "ระบบรับคำขอแล้ว กรุณาตรวจสอบอีเมลและกดยืนยันก่อนเข้าสู่ระบบ",
-                    true
-                );
+    "ส่งอีเมลยืนยันสำเร็จ กำลังไปหน้าเข้าสู่ระบบ...",
+    true
+);
 
-                // ไม่ redirect ไปหน้า Login อัตโนมัติ
+window.location.href = "/login.html";
+return;
 
             } catch (error) {
                 console.error("REGISTER ERROR:", error);
