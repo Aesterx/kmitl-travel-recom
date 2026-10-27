@@ -1424,3 +1424,41 @@ footer {
     object-fit: contain;
     border-radius: 12px;
 }
+/* FIX: เนื้อหาแท็บข้อมูลและรีวิว */
+#placeDetail .detail-tab-content {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 200px;
+    max-height: none;
+    overflow: visible;
+    flex: none;
+    align-self: stretch;
+}
+
+/* FIX: เนื้อหาภายในแท็บรีวิว */
+#placeDetail #reviewTab h3,
+#placeDetail #reviewSummary,
+#placeDetail #reviewList,
+#placeDetail .review-form,
+#placeDetail .star-rating {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: fit-content;
+    overflow: visible;
+}
+
+/* ให้ดาวเรียงแนวนอน */
+#placeDetail .star-rating {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0 15px;
+}
+
+/* มือถือ */
+@media (max-width: 768px) {
+    #placeDetail .place-detail {
+        padding: 20px;
+    }
+}
