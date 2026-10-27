@@ -1143,6 +1143,7 @@ async function showPlaceDetail(
 >
     📍 นำทางด้วย Google Maps
 </button>
+</div>
                 <!-- ================================= -->
                 <!-- TAB รีวิว -->
                 <!-- ================================= -->
@@ -1821,91 +1822,36 @@ async function showFavorites(
 // SWITCH DETAIL TAB
 // =====================================================
 
-async function showDetailTab(
-    tab,
-    placeId
-) {
+async function showDetailTab(tab, placeId) {
+    const infoTab = document.getElementById("infoTab");
+    const reviewTab = document.getElementById("reviewTab");
 
-    const infoTab =
-        document.getElementById(
-            "infoTab"
-        );
-
-    const reviewTab =
-        document.getElementById(
-            "reviewTab"
-        );
-
-    const buttons =
-        document.querySelectorAll(
-            ".tab-button"
-        );
-
-
-    if (tab === "info") {
-
-        infoTab.style.display =
-            "block";
-
-        reviewTab.style.display =
-            "none";
-
-
-        if (buttons[0]) {
-
-            buttons[0].classList.add(
-                "active"
-            );
-
-        }
-
-
-        if (buttons[1]) {
-
-            buttons[1].classList.remove(
-                "active"
-            );
-
-        }
-
-    } else {
-
-        infoTab.style.display =
-            "none";
-
-        reviewTab.style.display =
-            "block";
-
-
-        if (buttons[0]) {
-
-            buttons[0].classList.remove(
-                "active"
-            );
-
-        }
-
-
-        if (buttons[1]) {
-
-            buttons[1].classList.add(
-                "active"
-            );
-
-        }
-
-
-        loadReviewSummary(
-            placeId
-        );
-
-
-        loadReviews(
-            placeId
-        );
-
+    const detail = document.getElementById("placeDetail");
+    if (!infoTab || !reviewTab || !detail) {
+        console.error("ไม่พบ infoTab, reviewTab หรือ placeDetail");
+        return;
     }
 
+    const buttons = detail.querySelectorAll(".tab-button");
+
+    if (tab === "review") {
+        infoTab.style.display = "none";
+        reviewTab.style.display = "block";
+
+        buttons[0]?.classList.remove("active");
+        buttons[1]?.classList.add("active");
+
+        await Promise.all([
+            loadReviewSummary(placeId),
+            loadReviews(placeId)
+        ]);
+    } else {
+        infoTab.style.display = "block";
+        reviewTab.style.display = "none";
+
+        buttons[0]?.classList.add("active");
+        buttons[1]?.classList.remove("active");
+    }
 }
 
 
