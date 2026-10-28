@@ -1,9 +1,11 @@
+/* CSS กำหนดรูปแบบหน้าตาเว็บไซต์ เช่น สี ฟอนต์ เมนู การ์ด แบบฟอร์ม รายละเอียดสถานที่ และการแสดงผลบนหน้าจอขนาดต่าง ๆ */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* BODY: รูปแบบพื้นฐานทั้งหน้า เช่น ฟอนต์ สีพื้นหลัง และสีข้อความ */
 body {
     font-family: Arial, sans-serif;
     background-color: #fff8f2;
@@ -15,6 +17,7 @@ body {
    HEADER
 ========================= */
 
+/* HEADER: จัดชื่อเว็บและเมนูให้อยู่ในแถบเดียวกันด้วย flex */
 header {
     display: flex;
     align-items: center;
@@ -35,6 +38,7 @@ header {
    NAVBAR
 ========================= */
 
+/* NAVIGATION: จัดลิงก์เมนูในแนวนอนและกำหนดระยะห่างระหว่างรายการ */
 nav {
     display: flex;
     align-items: center;
@@ -154,6 +158,7 @@ nav a:hover {
    HERO
 ========================= */
 
+/* HERO: ส่วนเด่นหน้าแรก ใช้เป็นพื้นที่นำสายตา/ค้นหาสถานที่ */
 .hero {
     height: 380px;
 
@@ -207,6 +212,7 @@ nav a:hover {
    SEARCH
 ========================= */
 
+/* SEARCH: จัดช่องค้นหาและปุ่มให้อยู่เป็นกลุ่มเดียวกัน */
 .search {
     width: 700px;
     max-width: 90%;
@@ -246,7 +252,8 @@ nav a:hover {
     color: #999;
 }
 
-.search button {
+.search /* BUTTON BASE: รูปแบบพื้นฐานของปุ่ม ก่อนกฎเฉพาะของแต่ละปุ่ม */
+button {
     border: none;
 
     background-color: #fd7d38;
@@ -301,6 +308,7 @@ button:hover {
    CONTENT
 ========================= */
 
+/* CONTENT: พื้นที่เนื้อหาหลักของแต่ละหน้าหรือแต่ละ section */
 .content {
     padding: 60px;
 
@@ -322,6 +330,7 @@ button:hover {
    MAIN CARDS
 ========================= */
 
+/* CARDS: ใช้จัดกลุ่มการ์ดรายการให้เรียงเป็น layout ตามที่กำหนด */
 .cards {
     display: grid;
 
@@ -334,6 +343,7 @@ button:hover {
     margin: 0 auto;
 }
 
+/* CARD: รูปลักษณ์ของการ์ดแต่ละรายการ เช่น ขอบ เงา และระยะห่าง */
 .card {
     width: 100%;
     min-height: 200px;
@@ -382,6 +392,7 @@ button:hover {
 ========================= */
 
 #typesPage,
+/* MOOD PAGE: การจัดหน้าที่ให้เลือกสถานที่ตามบรรยากาศ/อารมณ์ */
 #moodsPage {
     min-height: calc(100vh - 160px);
 
@@ -555,6 +566,7 @@ button:hover {
    PLACES PAGE
 ========================= */
 
+/* PLACES PAGE: พื้นที่แสดงผลรายการสถานที่ */
 #placesPage {
     min-height: calc(100vh - 160px);
 }
@@ -572,6 +584,7 @@ button:hover {
    ABOUT PAGE
 ========================= */
 
+/* ABOUT PAGE: พื้นที่เนื้อหาเกี่ยวกับเว็บไซต์ */
 #aboutPage {
     min-height: calc(100vh - 160px);
 
@@ -617,6 +630,7 @@ button:hover {
    RANDOM RESULT
 ========================= */
 
+/* RANDOM RESULT: พื้นที่แสดงผลเมื่อใช้ฟังก์ชันสุ่มสถานที่ */
 .random-result {
     position: fixed;
 
@@ -719,6 +733,7 @@ button:hover {
    LOGIN / REGISTER
 ========================= */
 
+/* AUTH LAYOUT: กลุ่มกฎหน้าฟอร์มบัญชี เช่น login/register/กู้คืน */
 .login-container {
     min-height: 100vh;
 

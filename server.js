@@ -1,3 +1,4 @@
+/* JavaScript ฝั่ง Node.js/Express: ตั้งค่า middleware, เชื่อมต่อ MySQL, จัดการอีเมล/บัญชีผู้ใช้ และเปิด API ให้หน้าเว็บเรียกใช้ */
 require("dotenv").config();
 
 const express = require("express");
@@ -21,7 +22,9 @@ const passwordResetTokens = new Map();
 // =========================
 
 app.use(express.static(__dirname + "/public"));
+// แปลง request body ที่เป็น JSON ให้เข้าถึงได้ผ่าน req.body
 app.use(express.json());
+// รองรับข้อมูลแบบฟอร์มชนิด URL-encoded
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
@@ -43,6 +46,7 @@ app.use(express.static(__dirname));
 
 // ใช้ pool แทน connection เดียว
 // ถ้า connection หลุด (เช่น idle นานบน Railway) จะเปิดใหม่ให้อัตโนมัติ
+// createPool จัดการ connection หลายรายการและนำ connection กลับมาใช้ซ้ำ
 const db = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -81,6 +85,7 @@ for (const key of EMAILJS_KEYS) {
     console.log(key + ":", process.env[key] ? "มีค่า" : "ไม่มีค่า");
 }
 
+// ส่งอีเมลผ่าน EmailJS API และตรวจผลตอบกลับ หากบริการตอบข้อผิดพลาดจะโยน Error ให้ส่วนเรียกจัดการ
 async function sendEmail({ to, subject, html }) {
 
     const response = await fetch(
@@ -119,7 +124,11 @@ async function sendEmail({ to, subject, html }) {
    ยังไม่ INSERT ลงตาราง user
 ========================= */
 
+// Route /register: รับข้อมูลสมัครสมาชิก ตรวจความครบถ้วน/ข้อมูลซ้ำ แฮชรหัสผ่าน และส่งอีเมลยืนยันก่อนสร้างบัญชี
+// อธิบายการทำงาน: Endpoint สมัครสมาชิก: รับข้อมูลจาก req.body ตรวจช่องจำเป็น/ความยาวรหัสผ่าน เช็กชื่อผู้ใช้และอีเมลซ้ำ แล้วดำเนินขั้นตอนยืนยันตาม logic ที่อยู่ใน route
 app.post("/register", async (req, res) => {
+    // req.body คือข้อมูลที่ client ส่งมาและ middleware แปลงรูปแบบให้แล้ว
+    // trim() ตัดช่องว่างหัวท้าย; String(...) ทำให้ค่าที่นำมาใช้เป็นข้อความ
     try {
         const username = String(req.body.username || "").trim();
         const email = String(req.body.email || "").trim().toLowerCase();
@@ -245,6 +254,8 @@ app.post("/register", async (req, res) => {
 ========================= */
 
 
+// Route /forgot-password: ตรวจอีเมลผู้ใช้ สร้าง token สำหรับรีเซ็ตรหัสผ่าน และส่งลิงก์ทางอีเมล
+// อธิบายการทำงาน: Endpoint เริ่มกู้คืนรหัสผ่าน: รับข้อมูลบัญชี ตรวจสอบตามเงื่อนไข สร้าง token/ข้อมูลหมดอายุ และส่งขั้นตอนรีเซ็ตตาม implementation
 app.post("/forgot-password", (req, res) => {
     const email = String(req.body.email || "").trim();
 
@@ -331,6 +342,8 @@ app.post("/forgot-password", (req, res) => {
    RESET PASSWORD
 ========================= */
 
+// Route /reset-password: ตรวจ token และเปลี่ยนรหัสผ่านเป็นค่าแฮชใหม่เมื่อ token ใช้ได้
+// อธิบายการทำงาน: Endpoint เปลี่ยนรหัสผ่าน: ตรวจ token และข้อมูลรหัสผ่านใหม่ ก่อนอัปเดตข้อมูลผู้ใช้เมื่อผ่านเงื่อนไข
 app.post("/reset-password", async (req, res) => {
     const token = String(req.body.token || "").trim();
     const password = String(req.body.password || "");
@@ -409,6 +422,8 @@ app.post("/reset-password", async (req, res) => {
 // VERIFY EMAIL
 // =========================
 
+// Route /verify: ตรวจ token ยืนยันอีเมล แล้วสร้างบัญชีผู้ใช้เมื่อข้อมูลรอยืนยันถูกต้อง
+// อธิบายการทำงาน: Endpoint ยืนยันบัญชีจาก token ที่ส่งมากับลิงก์ แล้วดำเนินการยืนยัน/สร้างบัญชีตามเงื่อนไขของระบบ
 app.get("/verify", (req, res) => {
 
     const token =
@@ -502,6 +517,8 @@ if (!pendingUser || pendingUser.expiresAt <= Date.now()) {
 // LOGIN
 // =========================
 
+// Route /login: ตรวจชื่อผู้ใช้และรหัสผ่าน จากนั้นสร้างสถานะ session เมื่อเข้าสู่ระบบสำเร็จ
+// อธิบายการทำงาน: Endpoint เข้าสู่ระบบ: รับข้อมูลบัญชี ตรวจผู้ใช้และรหัสผ่านด้วยขั้นตอนใน route แล้วจัดการ session เมื่อผ่านการตรวจ
 app.post("/login", (req, res) => {
 
     const {
@@ -609,6 +626,8 @@ app.post("/login", (req, res) => {
 // CHECK LOGIN
 // =========================
 
+// Route /me: ส่งข้อมูลผู้ใช้ที่กำลังเข้าสู่ระบบกลับไปให้หน้าเว็บ
+// อธิบายการทำงาน: Endpoint ตรวจสถานะผู้ใช้ปัจจุบันจาก session เพื่อให้หน้าเว็บรู้ว่าผู้ใช้ล็อกอินอยู่หรือไม่
 app.get("/me", (req, res) => {
 
     if (!req.session.user) {
@@ -628,6 +647,8 @@ app.get("/me", (req, res) => {
 // LOGOUT
 // =========================
 
+// Route /logout: ล้าง session เพื่อออกจากระบบ
+// อธิบายการทำงาน: Endpoint ออกจากระบบ โดยทำลายหรือเคลียร์ session ตามโค้ดที่กำหนด
 app.get("/logout", (req, res) => {
 
     req.session.destroy((err) => {
@@ -699,6 +720,7 @@ app.get(
 // CHECK FAVORITE
 // =====================================================
 
+// อธิบายการทำงาน: Endpoint จัดการอ่านรายการโปรดของผู้ใช้ปัจจุบัน โดยอาศัยสถานะเข้าสู่ระบบและ query ที่กำหนด
 app.get(
     "/favorites/:placeId/check",
     (req, res) => {
@@ -754,6 +776,8 @@ app.get(
 // GET FAVORITES
 // =====================================================
 
+// Route /favorites: จัดการหรือดึงข้อมูลรายการโปรดของผู้ใช้ตาม method ที่ระบุ
+// อธิบายการทำงาน: Endpoint จัดการอ่านรายการโปรดของผู้ใช้ปัจจุบัน โดยอาศัยสถานะเข้าสู่ระบบและ query ที่กำหนด
 app.get("/favorites", (req, res) => {
 
     if (!req.session.user) {
@@ -811,6 +835,7 @@ app.get("/favorites", (req, res) => {
 // ADD FAVORITE
 // =====================================================
 
+// อธิบายการทำงาน: Endpoint จัดการอ่านรายการโปรดของผู้ใช้ปัจจุบัน โดยอาศัยสถานะเข้าสู่ระบบและ query ที่กำหนด
 app.post(
     "/favorites/:placeId",
     (req, res) => {
@@ -914,6 +939,7 @@ app.post(
 // DELETE FAVORITE
 // =====================================================
 
+// อธิบายการทำงาน: Endpoint จัดการอ่านรายการโปรดของผู้ใช้ปัจจุบัน โดยอาศัยสถานะเข้าสู่ระบบและ query ที่กำหนด
 app.delete(
     "/favorites/:placeId",
     (req, res) => {
@@ -971,6 +997,8 @@ app.delete(
 
 // GET ALL PLACES
 
+// Route /places: ให้ข้อมูลรายการสถานที่จากฐานข้อมูลแก่หน้าเว็บ
+// อธิบายการทำงาน: Endpoint อ่านรายการสถานที่จากฐานข้อมูล และส่งผลลัพธ์กลับในรูปแบบ JSON
 app.get("/places", (req, res) => {
 
     const sql = `

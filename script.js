@@ -1,3 +1,4 @@
+/* JavaScript ฝั่งเบราว์เซอร์: ควบคุมการเปลี่ยนหน้า ค้นหา/แสดงสถานที่ รายการโปรด รีวิว การเข้าสู่ระบบ และการวางแผนเดินทาง */
 console.log("script.js ทำงานแล้ว");
 
 let currentPlace = null;
@@ -7,6 +8,8 @@ let currentPlace = null;
 // SHOW MESSAGE
 // =====================================================
 
+// แสดงข้อความแจ้งเตือนแก่ผู้ใช้ผ่านกล่อง alert โดยใช้ข้อความที่ส่งเข้ามา หรือข้อความต้อนรับเมื่อไม่ได้ส่งข้อความ
+// อธิบายการทำงาน: แสดงข้อความแจ้งเตือนให้ผู้ใช้ผ่าน alert โดยรับข้อความจากจุดที่เรียกใช้ หากส่งค่าว่างหรือ undefined จะใช้ข้อความต้อนรับเริ่มต้น ฟังก์ชันนี้ไม่ส่งข้อมูลไปเซิร์ฟเวอร์
 function showMessage(message) {
     alert(
         message || "ยินดีต้อนรับเข้าสู่เว็บไซต์!"
@@ -18,6 +21,8 @@ function showMessage(message) {
 // TOGGLE PASSWORD
 // =====================================================
 
+// สลับช่องรหัสผ่านระหว่าง type=password (ซ่อนตัวอักษร) และ type=text (แสดงตัวอักษร) พร้อมเปลี่ยนไอคอนตา
+// อธิบายการทำงาน: สลับการมองเห็นรหัสผ่านของช่อง input ที่ระบุด้วย id: password คือซ่อนข้อความ และ text คือแสดงข้อความ จากนั้นเปลี่ยน class ของไอคอนให้ตรงกับสถานะ
 function togglePassword(id, button) {
     const input = document.getElementById(id);
     const icon = button.querySelector("i");
@@ -41,7 +46,11 @@ function togglePassword(id, button) {
 // PAGE HISTORY
 // =====================================================
 
+// บันทึกสถานะหน้าไว้ใน browser history ด้วย pushState เพื่อให้ปุ่มย้อนกลับ/เดินหน้าและ URL hash สอดคล้องกับหน้าที่เปิด
+// อธิบายการทำงาน: บันทึกสถานะการนำทางลง browser history ด้วย pushState พร้อมใส่ page และข้อมูลเพิ่มเติม (data) ลง state และปรับ hash ของ URL เพื่อช่วยรองรับการย้อนกลับ/รีเฟรชตามโครงสร้างเว็บ
 function savePageState(page, data = {}) {
+    // pushState เพิ่ม state ใหม่ในประวัติการนำทางโดยไม่โหลดเอกสารใหม่
+    // เพิ่มรายการลงประวัติการนำทางของเบราว์เซอร์ โดยไม่โหลดเอกสารใหม่
     history.pushState(
         {
             page: page,
@@ -57,6 +66,8 @@ function savePageState(page, data = {}) {
 // SHOW HOME
 // =====================================================
 
+// แสดงหน้าหลักและซ่อนส่วนหน้าอื่น โดย fromHistory ใช้แยกกรณีที่เรียกจากประวัติการนำทาง
+// อธิบายการทำงาน: กลับไปแสดงหน้าแรก: ถ้าไม่ได้ถูกเรียกจากการคืนค่าประวัติ จะเพิ่ม home ลง history แล้วซ่อนพื้นที่หน้าอื่นก่อนเปิดเนื้อหาหลัก
 function showHome(fromHistory = false) {
 
     if (!fromHistory) {
@@ -131,6 +142,8 @@ function showHome(fromHistory = false) {
 // SEARCH
 // =====================================================
 
+// ค้นหาคำที่ผู้ใช้พิมพ์ในรายการการ์ดสถานที่ที่มีอยู่ แล้วแสดงเฉพาะการ์ดที่ตรงกัน
+// อธิบายการทำงาน: ค้นหาจากการ์ดสถานที่ที่อยู่ใน DOM โดยอ่านคำค้น ตัดช่องว่าง แปลงเป็นตัวพิมพ์เล็ก แล้วเทียบกับข้อความในการ์ดที่มีอยู่ หากไม่มีคำค้นจะแจ้งเตือนและหยุด
 function searchPlace() {
 
     const input =
@@ -249,6 +262,8 @@ function searchPlace() {
 // SHOW PLACES
 // =====================================================
 
+// โหลดรายการสถานที่จาก API /places (และอาจกรองตาม TYPE_ID) ก่อนสร้างการ์ดให้คลิกเปิดรายละเอียดได้
+// อธิบายการทำงาน: แสดงหน้ารายการสถานที่และอาจกรองตามประเภทที่ได้รับ จากนั้นโหลด/เตรียมการ์ดและจัดการการแสดงส่วนที่เกี่ยวข้อง
 async function showPlaces(
     typeId = null,
     fromHistory = false
@@ -450,6 +465,8 @@ async function showPlaces(
 // SHOW TYPES
 // =====================================================
 
+// แสดงหน้ารายการประเภทสถานที่ และซ่อนหน้าอื่น
+// อธิบายการทำงาน: แสดงหน้าเลือกประเภทสถานที่ โดยจัดการสถานะการแสดงผลของ section และข้อมูลประเภทตามขั้นตอนในฟังก์ชัน
 function showTypes(
     fromHistory = false
 ) {
@@ -518,6 +535,8 @@ function showTypes(
 // SHOW MOODS
 // =====================================================
 
+// แสดงหน้ารายการบรรยากาศ/อารมณ์ และซ่อนหน้าอื่น
+// อธิบายการทำงาน: แสดงหน้าเลือกสถานที่ตามอารมณ์ (Mood) และจัดการพื้นที่หน้าเว็บที่ต้องซ่อนหรือแสดง
 function showMoods(
     fromHistory = false
 ) {
@@ -586,6 +605,8 @@ function showMoods(
 // SHOW ABOUT
 // =====================================================
 
+// แสดงหน้าเกี่ยวกับโครงงานและซ่อนหน้าอื่น
+// อธิบายการทำงาน: เปิดส่วนเกี่ยวกับเว็บไซต์ พร้อมจัดการการแสดงผลหน้าอื่นเพื่อไม่ให้เนื้อหาซ้อนกัน
 function showAbout(
     fromHistory = false
 ) {
@@ -654,6 +675,8 @@ function showAbout(
 // SHOW MOOD PLACES
 // =====================================================
 
+// แสดงสถานที่ที่ตรงกับบรรยากาศที่เลือก
+// อธิบายการทำงาน: แสดงสถานที่ตาม Mood ที่เลือก โดยโหลด/กรองข้อมูลตามเงื่อนไขของฟังก์ชันและแสดงผลเป็นรายการ
 async function showMoodPlaces(
     moodId,
     fromHistory = false
@@ -854,6 +877,8 @@ async function showMoodPlaces(
 // PLACE DETAIL
 // =====================================================
 
+// ขอข้อมูลสถานที่รายตัวจากเซิร์ฟเวอร์ แล้วเติมรายละเอียด คะแนน และส่วนรีวิวในหน้ารายละเอียด
+// อธิบายการทำงาน: เปิดหน้ารายละเอียดสถานที่จาก placeId โดยขอข้อมูลจาก API แล้วนำข้อมูลที่ได้รับไปอัปเดตองค์ประกอบหน้าเว็บ รวมถึงส่วนสรุปที่เกี่ยวข้อง
 async function showPlaceDetail(
     placeId,
     fromHistory = false,
@@ -1358,6 +1383,8 @@ async function showPlaceDetail(
 // FAVORITE - TOGGLE
 // =====================================================
 
+// เพิ่มหรือนำสถานที่ออกจากรายการโปรดตามสถานะปัจจุบัน
+// อธิบายการทำงาน: เพิ่มหรือเอาสถานที่ออกจากรายการโปรดตามสถานะปัจจุบัน โดยติดต่อ API และอัปเดตหน้าตาปุ่ม/รายการตามผลตอบกลับ
 async function toggleFavorite(placeId) {
 
     console.log(
@@ -1493,6 +1520,8 @@ async function toggleFavorite(placeId) {
 // FAVORITE - UPDATE BUTTON
 // =====================================================
 
+// ปรับหน้าตาปุ่มรายการโปรดให้สอดคล้องกับสถานะของสถานที่
+// อธิบายการทำงาน: ปรับข้อความหรือรูปลักษณ์ปุ่มรายการโปรดให้สอดคล้องกับสถานะ isFavorite ที่ได้รับ ไม่ใช่ตัวบันทึกข้อมูลถาวรด้วยตัวเอง
 function updateFavoriteButton(isFavorite) {
 
     const button =
@@ -1539,6 +1568,8 @@ function updateFavoriteButton(isFavorite) {
 // FAVORITE - CHECK
 // =====================================================
 
+// ตรวจสอบว่าสถานที่ถูกบันทึกเป็นรายการโปรดหรือไม่
+// อธิบายการทำงาน: ตรวจสอบว่าสถานที่ที่ระบุเป็นรายการโปรดของผู้ใช้หรือไม่ ผ่านข้อมูล/endpoint ตามที่กำหนด แล้วใช้ผลในการปรับ UI
 async function checkFavorite(
     placeId
 ) {
@@ -1577,6 +1608,8 @@ async function checkFavorite(
 // SHOW FAVORITES
 // =====================================================
 
+// โหลดและแสดงรายการสถานที่โปรดของผู้ใช้
+// อธิบายการทำงาน: เปิดส่วนรายการโปรด โหลดข้อมูลที่เกี่ยวข้อง แล้วแสดงรายการสถานที่ที่ผู้ใช้บันทึกไว้
 async function showFavorites(
     fromHistory = false
 ) {
@@ -1822,6 +1855,8 @@ async function showFavorites(
 // SWITCH DETAIL TAB
 // =====================================================
 
+// สลับแท็บภายในหน้ารายละเอียด เช่น ข้อมูลและรีวิว
+// อธิบายการทำงาน: สลับแท็บภายในหน้ารายละเอียด เช่น ข้อมูลสถานที่กับรีวิว และเรียกกระบวนการโหลดเนื้อหาของแท็บที่เลือก
 async function showDetailTab(tab, placeId) {
     const infoTab = document.getElementById("infoTab");
     const reviewTab = document.getElementById("reviewTab");
@@ -1930,6 +1965,8 @@ document.addEventListener(
 // LOAD REVIEW SUMMARY
 // =====================================================
 
+// เรียก API เพื่อดึงคะแนนเฉลี่ยและจำนวนรีวิวของสถานที่
+// อธิบายการทำงาน: เรียกข้อมูลสรุปรีวิวของสถานที่ เช่น คะแนนเฉลี่ยและจำนวนรีวิว แล้วนำผลมาแสดงในพื้นที่สรุป
 async function loadReviewSummary(
     placeId
 ) {
@@ -2041,6 +2078,8 @@ async function loadReviewSummary(
 // LOAD REVIEWS
 // =====================================================
 
+// เรียก API และแสดงรายการความคิดเห็น/คะแนนของสถานที่
+// อธิบายการทำงาน: ขอรายการรีวิวของสถานที่จาก API แล้วแสดงความคิดเห็น/คะแนนที่ได้รับตามรูปแบบของหน้า
 async function loadReviews(
     placeId
 ) {
@@ -2204,6 +2243,8 @@ async function loadReviews(
 // SUBMIT REVIEW
 // =====================================================
 
+// ตรวจข้อมูลรีวิวจากแบบฟอร์มและส่งคะแนนกับความคิดเห็นไปยัง API
+// อธิบายการทำงาน: อ่านค่าคะแนนและความคิดเห็นจากแบบฟอร์ม ส่งไปยัง API เพื่อให้เซิร์ฟเวอร์ตรวจสอบและบันทึก จากนั้นจัดการข้อความตอบกลับ/รีโหลดส่วนรีวิว
 async function submitReview(
     placeId
 ) {
@@ -2322,6 +2363,8 @@ async function submitReview(
 // LOAD PLACES
 // =====================================================
 
+// โหลดข้อมูลสถานที่เพื่อใช้ในส่วนที่ต้องการรายการสถานที่
+// อธิบายการทำงาน: โหลดข้อมูลสถานที่จาก endpoint ของเว็บ เพื่อให้ฟังก์ชันต่าง ๆ นำรายการไปใช้แสดงหรือเติมตัวเลือก
 async function loadPlaces() {
 
     try {
@@ -2429,6 +2472,8 @@ async function loadPlaces() {
 let isRandomizing = false;
 
 
+// สุ่มเลือกสถานที่จากข้อมูลที่โหลดไว้ แล้วแสดงผลให้ผู้ใช้
+// อธิบายการทำงาน: จัดการการสุ่ม/اختيارสถานที่ للعرضตามเงื่อนไขในฟังก์ชัน และป้องกันการเรียกซ้ำในช่วงกำลังทำงานตามสถานะที่กำหนด
 async function randomPlace() {
 
     if (isRandomizing) {
@@ -2628,6 +2673,8 @@ async function randomPlace() {
 // CLOSE RANDOM
 // =====================================================
 
+// ปิดหน้าต่างหรือส่วนแสดงผลการสุ่มสถานที่
+// อธิบายการทำงาน: ปิดพื้นที่หรือหน้าต่างผลการสุ่มสถานที่ และคืนการแสดงผลตามที่ฟังก์ชันกำหนด
 function closeRandom() {
 
     const resultBox =
@@ -2650,6 +2697,8 @@ function closeRandom() {
 // BACK FROM PLACES
 // =====================================================
 
+// ย้อนจากหน้ารายการสถานที่ไปยังหน้าก่อนหน้าตามข้อมูลที่กำหนด
+// อธิบายการทำงาน: จัดการการย้อนจากหน้ารายการสถานที่ไปยังหน้าก่อนหน้าตาม flow ของเว็บไซต์
 function goBackFromPlaces() {
 
     history.back();
@@ -2661,6 +2710,8 @@ function goBackFromPlaces() {
 // BACK FROM DETAIL
 // =====================================================
 
+// ย้อนออกจากหน้ารายละเอียดสถานที่
+// อธิบายการทำงาน: จัดการการย้อนออกจากหน้ารายละเอียดสถานที่ โดยอิงสถานะการนำทาง/หน้าก่อนหน้าที่ระบบกำหนด
 function goBackFromDetail() {
 
     history.back();
@@ -2672,6 +2723,8 @@ function goBackFromDetail() {
 // LOGOUT
 // =====================================================
 
+// ส่งคำขอออกจากระบบ แล้วนำผู้ใช้กลับไปยังหน้าที่เหมาะสม
+// อธิบายการทำงาน: ส่งคำขอออกจากระบบไปยังเซิร์ฟเวอร์ แล้วปรับหน้าจอ/สถานะผู้ใช้ตามผลที่ตอบกลับ
 async function logout() {
 
     try {
@@ -2715,9 +2768,12 @@ async function logout() {
 // CHECK LOGIN
 // =====================================================
 
+// ตรวจสอบสถานะเข้าสู่ระบบจากเซิร์ฟเวอร์ และปรับเมนูผู้ใช้ตามผลลัพธ์
+// อธิบายการทำงาน: ตรวจสถานะ session ของผู้ใช้ผ่าน API แล้วปรับส่วน UI ที่เกี่ยวข้อง เช่น เมนูผู้ใช้หรือปุ่มเข้าสู่ระบบ
 async function checkLogin() {
     try {
-        const response = await fetch("/me", {
+        // ส่ง HTTP request ไปยัง API และรอผลตอบกลับก่อนทำขั้นตอนถัดไป
+    const response = await fetch("/me", {
             method: "GET",
             credentials: "same-origin",
             cache: "no-store"
@@ -2727,7 +2783,8 @@ async function checkLogin() {
             throw new Error("ตรวจสอบสถานะ Login ไม่สำเร็จ");
         }
 
-        const data = await response.json();
+        // แปลงเนื้อหาตอบกลับที่เป็น JSON ให้เป็นค่าที่ JavaScript นำไปใช้งานได้
+    const data = await response.json();
         const userMenu = document.getElementById("userMenu");
 
         if (!userMenu) {
@@ -3040,6 +3097,8 @@ window.addEventListener(
 // GOOGLE MAPS DIRECTIONS
 // =====================================================
 
+// เปิดเส้นทาง/ตำแหน่งใน Google Maps
+// อธิบายการทำงาน: สร้างหรือเปิดลิงก์ Google Maps ตามข้อมูลจุดหมายในหน้าเว็บ ไม่ได้หมายความว่าเว็บคำนวณเส้นทางเอง
 function openGoogleMaps() {
     if (!currentPlace) {
         return;
@@ -3069,6 +3128,8 @@ function openGoogleMaps() {
 
 let travelPlacesCache = [];
 
+// แสดงหน้าวางแผนการเดินทางและเตรียมข้อมูลปลายทาง
+// อธิบายการทำงาน: เปิดส่วนวางแผนเดินทาง เตรียมรายการสถานที่สำหรับเลือก และอัปเดตข้อมูลประกอบแผน
 async function showTravel(fromHistory = false) {
     if (!fromHistory) {
         savePageState("travel");
@@ -3106,7 +3167,9 @@ async function showTravel(fromHistory = false) {
     info.innerHTML = "<p>กำลังโหลดข้อมูลสถานที่...</p>";
 
     try {
-        const response = await fetch("/places");
+        // fetch ขอข้อมูลจาก route ฝั่ง Express และ await รอผลก่อนทำงานต่อ
+        // ส่ง HTTP request ไปยัง API และรอผลตอบกลับก่อนทำขั้นตอนถัดไป
+    const response = await fetch("/places");
         if (!response.ok) throw new Error("โหลดสถานที่ไม่สำเร็จ");
         const places = await response.json();
         if (!Array.isArray(places)) throw new Error("รูปแบบข้อมูลสถานที่ไม่ถูกต้อง");
@@ -3128,6 +3191,8 @@ async function showTravel(fromHistory = false) {
     }
 }
 
+// นำรายการสถานที่มาเติมในตัวเลือกปลายทางของแผนการเดินทาง
+// อธิบายการทำงาน: เติมตัวเลือกสถานที่ลงใน select element โดยวนผ่านข้อมูลสถานที่ที่ได้รับ
 function fillTravelDestinations(select, places) {
     const previous = select.value;
     select.innerHTML = '<option value="">-- เลือกสถานที่ปลายทาง --</option>';
@@ -3146,6 +3211,8 @@ function fillTravelDestinations(select, places) {
     }
 }
 
+// อัปเดตข้อมูลประกอบการเดินทางเมื่อผู้ใช้เปลี่ยนปลายทาง
+// อธิบายการทำงาน: อัปเดตรายละเอียดการเดินทางตามตัวเลือกจุดหมายปัจจุบัน
 function updateTravelDetails() {
     const select = document.getElementById("travelDestination");
     const info = document.getElementById("travelInfo");
@@ -3172,6 +3239,8 @@ function updateTravelDetails() {
     updateTravelMapLink();
 }
 
+// สร้างหรือปรับลิงก์ Google Maps ตามจุดเริ่มต้น ปลายทาง และรูปแบบเดินทาง
+// อธิบายการทำงาน: ปรับ URL/ลิงก์แผนที่ให้สัมพันธ์กับจุดหมายที่ผู้ใช้เลือก
 function updateTravelMapLink() {
     const link = document.getElementById("travelMapLink");
     const originEl = document.getElementById("travelOrigin");
