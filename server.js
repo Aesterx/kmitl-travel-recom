@@ -1248,6 +1248,104 @@ app.post(
     }
 );
 
+/* =========================
+   SEARCH HISTORY
+========================= */
+
+app.post("/search-history", (req, res) => {
+    const keyword = String(req.body.keyword || "").trim();
+
+    if (!keyword || keyword.length > 100) {
+        return res.status(400).json({
+            success: false,
+            message: "คำค้นหาไม่ถูกต้อง"
+        });
+    }
+
+    const userId = req.session.user?.id || null;
+
+    const sql = `
+        INSERT INTO \`search\`
+        (SEARCH_TEXT, SEARCH_DATE, USER_ID, PLACE_ID)
+        VALUES (?, NOW(), ?, NULL)
+    `;
+
+    db.query(sql, [keyword, userId], (err, result) => {
+        if (err) {
+            console.error("SAVE SEARCH ERROR:", err);
+            return res.status(500).json({
+                success: false,
+                message: "บันทึกประวัติการค้นหาไม่สำเร็จ"
+            });
+        }
+
+        res.json({
+            success: true,
+            searchId: result.insertId
+        });
+    });
+});
+
+
+/* =========================
+   RANDOM HISTORY
+========================= */
+
+app.post("/random-history", (req, res) => {
+    const placeId = Number(req.body.placeId);
+
+    if (!Number.isSafeInteger(placeId) || placeId <= 0) {
+        return res.status(400).json({
+            success: false,
+            message: "รหัสสถานที่ไม่ถูกต้อง"
+        });
+    }
+
+    const userId = req.session.user?.id || null;
+
+    // ตรวจสอบก่อนว่าสถานที่มีอยู่จริง
+    db.query(
+        "SELECT PLACE_ID FROM place WHERE PLACE_ID = ?",
+        [placeId],
+        (err, places) => {
+            if (err) {
+                console.error("CHECK RANDOM PLACE ERROR:", err);
+                return res.status(500).json({
+                    success: false,
+                    message: "ตรวจสอบสถานที่ไม่สำเร็จ"
+                });
+            }
+
+            if (places.length === 0) {
+                return res.status(404).json({
+                    success: false,
+                    message: "ไม่พบสถานที่"
+                });
+            }
+
+            const sql = `
+                INSERT INTO \`random\` (USER_ID, PLACE_ID)
+                VALUES (?, ?)
+            `;
+
+            db.query(sql, [userId, placeId], (err, result) => {
+                if (err) {
+                    console.error("SAVE RANDOM ERROR:", err);
+                    return res.status(500).json({
+                        success: false,
+                        message: "บันทึกประวัติการสุ่มไม่สำเร็จ"
+                    });
+                }
+
+                res.json({
+                    success: true,
+                    randomId: result.insertId
+                });
+            });
+        }
+    );
+});
+
 // =========================
 // START SERVER
 // =========================
