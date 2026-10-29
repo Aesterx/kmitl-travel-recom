@@ -3166,6 +3166,27 @@ function openGoogleMaps() {
 
 let travelPlacesCache = [];
 
+// บันทึกคำค้นหาลงฐานข้อมูล โดยไม่ขัดจังหวะการค้นหาบนหน้าเว็บ
+fetch("/search-history", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+        keyword: keyword
+    })
+})
+.then(async response => {
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || "บันทึกคำค้นหาไม่สำเร็จ");
+    }
+    return response.json();
+})
+.catch(error => {
+    console.error("บันทึกประวัติการค้นหา:", error);
+});
+
 // แสดงหน้าวางแผนการเดินทางและเตรียมข้อมูลปลายทาง
 // อธิบายการทำงาน: เปิดส่วนวางแผนเดินทาง เตรียมรายการสถานที่สำหรับเลือก และอัปเดตข้อมูลประกอบแผน
 async function showTravel(fromHistory = false) {
