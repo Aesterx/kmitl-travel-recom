@@ -144,161 +144,140 @@ function showHome(fromHistory = false) {
 
 // ค้นหาคำที่ผู้ใช้พิมพ์ในรายการการ์ดสถานที่ที่มีอยู่ แล้วแสดงเฉพาะการ์ดที่ตรงกัน
 // อธิบายการทำงาน: ค้นหาจากการ์ดสถานที่ที่อยู่ใน DOM โดยอ่านคำค้น ตัดช่องว่าง แปลงเป็นตัวพิมพ์เล็ก แล้วเทียบกับข้อความในการ์ดที่มีอยู่ หากไม่มีคำค้นจะแจ้งเตือนและหยุด
-function searchPlace() {
+async function searchPlace() {
+    const input = document.getElementById("searchInput");
+    const container = document.getElementById("placeCards");
 
-    const input =
-        document.getElementById("searchInput");
-
-    if (!input) {
+    if (!input || !container) {
+        console.error("ไม่พบ searchInput หรือ placeCards ในหน้าเว็บ");
         return;
     }
 
-    const keyword =
-        input.value.trim().toLowerCase();
+    const keyword = input.value.trim().toLocaleLowerCase("th-TH");
 
-    if (keyword === "") {
-
-        alert(
-            "กรุณาพิมพ์ชื่อสถานที่"
-        );
-
+    if (!keyword) {
+        alert("กรุณาพิมพ์ชื่อสถานที่");
+        input.focus();
         return;
     }
 
-// บันทึกคำค้นหาลงฐานข้อมูล โดยไม่ขัดจังหวะการค้นหาบนหน้าเว็บ
-fetch("/search-history", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-        keyword: keyword
+    savePageState("search", { keyword });
+
+    // บันทึกประวัติการค้นหา
+    fetch("/search-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ keyword })
     })
-})
-.then(async response => {
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || "บันทึกคำค้นหาไม่สำเร็จ");
-    }
-    return response.json();
-})
-.catch(error => {
-    console.error("บันทึกประวัติการค้นหา:", error);
-});
+        .then(async response => {
+            if (!response.ok) {
+                throw new Error("บันทึกประวัติการค้นหาไม่สำเร็จ");
+            }
+            return response.json().catch(() => ({}));
+        })
+        .catch(error => {
+            console.error("บันทึกประวัติการค้นหา:", error);
+        });
 
-// บันทึกสถานที่สุดท้ายที่สุ่มได้
-fetch("/random-history", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-        placeId: place.PLACE_ID
-    })
-})
-.then(async response => {
-    if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || "บันทึกประวัติการสุ่มไม่สำเร็จ");
-    }
-    return response.json();
-})
-.catch(error => {
-    console.error("บันทึกประวัติการสุ่ม:", error);
-});
-    savePageState("search", {
-        keyword: keyword
-    });
-
-    const places =
-        document.querySelectorAll(
-            "#placeCards .card"
-        );
-
-    let found = false;
-
-    places.forEach(card => {
-
-        const text =
-            card.innerText.toLowerCase();
-
-        if (text.includes(keyword)) {
-
-            card.style.display = "block";
-
-            found = true;
-
-        } else {
-
-            card.style.display = "none";
-
-        }
-
-    });
-
-    const hero =
-        document.querySelector(".hero");
-
-    if (hero) {
-        hero.style.display = "none";
-    }
+    // แสดงหน้าผลการค้นหา
+    const hero = document.querySelector(".hero");
+    if (hero) hero.style.display = "none";
 
     document.querySelectorAll(".content").forEach(section => {
         section.style.display = "none";
     });
 
-    const typesPage =
-        document.getElementById("typesPage");
+    [
+        "typesPage",
+        "moodsPage",
+        "favoritesPage",
+        "aboutPage",
+        "detailPage"
+    ].forEach(id => {
+        const section = document.getElementById(id);
+        if (section) section.style.display = "none";
+    });
 
-    if (typesPage) {
-        typesPage.style.display = "none";
+    const placesPage = document.getElementById("placesPage");
+    if (placesPage) placesPage.style.display = "block";
+
+    const placesTitle = document.getElementById("placesTitle");
+    if (placesTitle) {
+        placesTitle.innerText = `ผลการค้นหา: ${input.value.trim()}`;
     }
 
-    const moodsPage =
-        document.getElementById("moodsPage");
+    container.innerHTML = "<p>กำลังค้นหาสถานที่...</p>";
 
-    if (moodsPage) {
-        moodsPage.style.display = "none";
+    try {
+        const response = await fetch("/places", {
+            credentials: "same-origin"
+        });
+
+        if (!response.ok) {
+            throw new Error("โหลดรายการสถานที่ไม่สำเร็จ");
+        }
+
+        const places = await response.json();
+
+        if (!Array.isArray(places)) {
+            throw new Error("ข้อมูลสถานที่จากเซิร์ฟเวอร์ไม่ถูกต้อง");
+        }
+
+        const matched = places.filter(place => {
+            const searchable = [
+                place.PLACE_NAME,
+                place.PLACE_DESCRIPTION,
+                place.PLACE_ADDRESS
+            ]
+                .filter(Boolean)
+                .join(" ")
+                .toLocaleLowerCase("th-TH");
+
+            return searchable.includes(keyword);
+        });
+
+        container.innerHTML = "";
+
+        if (matched.length === 0) {
+            container.innerHTML = "<p>ไม่พบสถานที่ที่ค้นหา</p>";
+            return;
+        }
+
+        matched.forEach(place => {
+            const card = document.createElement("div");
+            card.className = "card";
+
+            const icon = document.createElement("div");
+            icon.className = "icon";
+            icon.textContent = "📍";
+
+            const title = document.createElement("h3");
+            title.textContent =
+                place.PLACE_NAME || "ไม่ระบุชื่อสถานที่";
+
+            const description = document.createElement("p");
+            description.textContent =
+                place.PLACE_DESCRIPTION || "";
+
+            const address = document.createElement("p");
+            address.textContent =
+                `📍 ${place.PLACE_ADDRESS || ""}`;
+
+            card.append(icon, title, description, address);
+
+            card.addEventListener("click", () => {
+                showPlaceDetail(place.PLACE_ID);
+            });
+
+            container.appendChild(card);
+        });
+    } catch (error) {
+        console.error("ค้นหาสถานที่ไม่สำเร็จ:", error);
+        container.innerHTML =
+            "<p>เกิดข้อผิดพลาดในการค้นหาสถานที่ กรุณาลองใหม่</p>";
     }
-
-    const favoritesPage =
-        document.getElementById("favoritesPage");
-
-    if (favoritesPage) {
-        favoritesPage.style.display = "none";
-    }
-
-    const aboutPage =
-        document.getElementById("aboutPage");
-
-    if (aboutPage) {
-        aboutPage.style.display = "none";
-    }
-
-    const detailPage =
-        document.getElementById("detailPage");
-
-    if (detailPage) {
-        detailPage.style.display = "none";
-    }
-
-    const placesPage =
-        document.getElementById("placesPage");
-
-    if (placesPage) {
-        placesPage.style.display = "block";
-    }
-
-    if (!found) {
-
-        document.getElementById("placeCards").innerHTML =
-            "<p>ไม่พบสถานที่ที่ค้นหา</p>";
-
-    }
-
 }
-
-
 // =====================================================
 // SHOW PLACES
 // =====================================================
