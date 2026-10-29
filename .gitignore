@@ -1,3 +1,4 @@
 .env
 .claude/
 *.patch
+.DS_Store
